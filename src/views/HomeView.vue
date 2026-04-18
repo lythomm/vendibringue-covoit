@@ -665,7 +665,7 @@ async function confirmBooking(rideId: string) {
   if (!rideId || !auth.user) return;
 
   if (hasPreExistingActivity.value) {
-    showBookingError("Tu as déjà une réservation ou un trajet en cours !");
+    showBookingError("Tu as déjà une réservation ou un covoit en cours !");
     return;
   }
 
@@ -692,7 +692,7 @@ async function bookSeat() {
   if (!selectedRide.value || !auth.user) return;
 
   if (hasPreExistingActivity.value) {
-    showBookingError("Tu as déjà une réservation ou un trajet en cours !");
+    showBookingError("Tu as déjà une réservation ou un covoit en cours !");
     return;
   }
 
@@ -1528,7 +1528,7 @@ onUnmounted(() => {
 
           <div class="bg-brand-on-surface/[0.03] p-5 rounded-2xl mb-8">
             <div class="flex items-center">
-              <span class="material-symbols-outlined text-brand-primary"
+              <span class="material-symbols-outlined text-brand-primary mr-2"
                 >location_on</span
               >
               <p class="font-bold">

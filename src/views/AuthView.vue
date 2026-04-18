@@ -95,17 +95,6 @@ const handleAuth = async () => {
             <div class="h-1 w-6 bg-brand-primary rounded-full"></div>
           </div>
 
-          <header class="mb-8 text-center">
-            <h1
-              class="text-2xl md:text-3xl font-bold text-brand-on-surface leading-tight tracking-tight mb-2"
-            >
-              Bienvenue sur Vendibringue
-            </h1>
-            <p class="text-brand-on-surface/50 font-medium text-base">
-              Le covoit' sûr et flex pour ta soirée.
-            </p>
-          </header>
-
           <form @submit.prevent="handleAuth" class="w-full space-y-6">
             <!-- Prénom Input -->
             <div class="space-y-2">
