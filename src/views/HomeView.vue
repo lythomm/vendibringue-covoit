@@ -136,7 +136,7 @@ const myRide = computed(() => {
 const myBookedRides = computed(() => {
   if (!auth.user) return [];
   return rides.value.filter((r) =>
-    r.bookings?.some((b: any) => b.passenger_id === auth.user?.id),
+    r.bookings?.some((b: any) => b.passenger_id === auth?.user?.id),
   );
 });
 
@@ -147,7 +147,7 @@ const availableRides = computed(() => {
     // Hide if already booked by the user as a passenger
     if (
       auth.user &&
-      r.bookings?.some((b: any) => b.passenger_id === auth.user.id)
+      r.bookings?.some((b: any) => b.passenger_id === auth.user?.id)
     )
       return false;
     return true;
