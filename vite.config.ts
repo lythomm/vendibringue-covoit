@@ -11,13 +11,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.ico', 'favicon.png', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'VendiBringue Covoit',
         short_name: 'VB Covoit',
         description: 'Covoiturage social pour événements privés',
-        theme_color: '#6d28d9', // Deep purple from Heritage Bringue
-        background_color: '#ffffff',
+        theme_color: '#6d28d9',
+        background_color: '#F5F2EA',
         display: 'standalone',
         icons: [
           {
@@ -31,10 +31,10 @@ export default defineConfig({
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'pwa-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'maskable'
           }
         ]
       }

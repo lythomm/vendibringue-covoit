@@ -3,7 +3,7 @@
 @theme {
   --color-brand-primary: #006A45;
   --color-brand-secondary: #056c47;
-  --color-brand-surface: #fcf9f8;
+  --color-brand-surface: #F5F2EA;
   --color-brand-on-surface: #1b1c1c;
   --color-brand-outline: #bec9c0;
   
@@ -11,19 +11,23 @@
   --font-body: "Inter", sans-serif;
 }
 
-:root {
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+html, body {
+  overscroll-behavior: none;
+  overflow: hidden;
+  height: 100dvh;
 }
 
 body {
   @apply bg-brand-surface text-brand-on-surface;
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
-  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
 }
 
 #app {

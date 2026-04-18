@@ -64,30 +64,48 @@ Suite au **Party Mode**, voici les décisions critiques intégrées :
 
 ---
 
-## 4. Draft Data Schema (PostgreSQL)
+## 4. Data Schema (PostgreSQL)
+
+> **Note** : Le PIN à 4 chiffres est le mot de passe personnel de l'utilisateur
+> (stocké dans Supabase Auth, pas en clair). Il n'est **pas** lié à un événement.
+
+### Table `events`
+- `id` (uuid, pk, default `gen_random_uuid()`)
+- `name` (text)
+- `short_code` (text, unique) — code de partage (ex: `BRINGUE2026`)
+- `center_lat` (float8)
+- `center_lng` (float8)
+- `address` (text, nullable)
+- `starts_at` (timestamptz, nullable)
+- `created_at` (timestamptz, default `now()`)
 
 ### Table `profiles`
-- `id` (uuid, pk)
-- `phone` (text, unique)
-- `pin` (text, hashed)
-- `name` (text)
-- `created_at`
+- `id` (uuid, pk, fk -> auth.users)
+- `first_name` (text)
+- `phone` (text, unique, nullable)
+- `instagram_id` (text, nullable)
+- `avatar_url` (text, nullable)
+- `updated_at` (timestamptz, default `now()`)
 
 ### Table `rides`
-- `id` (uuid, pk)
+- `id` (uuid, pk, default `gen_random_uuid()`)
+- `event_id` (uuid, fk -> events)
 - `driver_id` (uuid, fk -> profiles)
-- `departure_city` (text)
-- `departure_point` (geometry/lat-lng)
-- `total_seats` (int)
-- `available_seats` (int) - Computed or Triggered
-- `status` (active, cancelled, completed)
+- `origin_name` (text)
+- `origin_lat` (float8)
+- `origin_lng` (float8)
+- `total_seats` (int, check 1–10)
+- `description` (text, nullable)
+- `departure_time` (timestamptz)
+- `status` (text: active | cancelled | completed, default `active`)
+- `created_at` (timestamptz, default `now()`)
 
 ### Table `bookings`
-- `id` (uuid, pk)
+- `id` (uuid, pk, default `gen_random_uuid()`)
 - `ride_id` (uuid, fk -> rides)
 - `passenger_id` (uuid, fk -> profiles)
-- `status` (booked, cancelled)
-- `created_at`
+- `status` (text: confirmed | cancelled, default `confirmed`)
+- `created_at` (timestamptz, default `now()`)
 
 ---
 
