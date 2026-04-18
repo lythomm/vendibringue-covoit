@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Vendibringue - Proposer un trajet</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"airbnb-red": "#006A45", "airbnb-dark": "#222222", "airbnb-gray": "#717171", "airbnb-border": "#EBEBEB", surface: "#fcf9f8", primary: "#004f33", "on-surface": "#1b1c1c", "on-surface-variant": "#3f4942", "inverse-surface": "#303030", "secondary-fixed-dim": "#82d8aa", "on-primary-fixed-variant": "#005234", "on-tertiary-fixed-variant": "#782f2e", "on-secondary": "#ffffff", "on-secondary-container": "#13724d", "secondary-fixed": "#9ef5c5", "secondary-container": "#9ef5c5", "error-container": "#ffdad6", "on-primary-fixed": "#002112", "surface-dim": "#dcd9d9", "surface-variant": "#e5e2e1", "on-error-container": "#93000a", "on-secondary-fixed": "#002112", "inverse-on-surface": "#f3f0ef", "on-tertiary-fixed": "#3e0408", "surface-container-low": "#f6f3f2", "on-primary": "#ffffff", "outline-variant": "#bec9c0", "surface-container": "#f0eded", "surface-container-highest": "#e5e2e1", "tertiary-fixed-dim": "#ffb3af", tertiary: "#752d2c", "primary-fixed-dim": "#82d8aa", "on-background": "#1b1c1c", "tertiary-container": "#934442", "on-tertiary-container": "#ffc8c5", "inverse-primary": "#82d8aa", error: "#ba1a1a", "on-tertiary": "#ffffff", outline: "#6f7a72", "surface-container-lowest": "#ffffff", "surface-tint": "#056c47", "on-primary-container": "#91e7b8", "surface-bright": "#fcf9f8", "primary-container": "#006a45", "on-secondary-fixed-variant": "#005234", "primary-fixed": "#9ef5c5", background: "#fcf9f8", secondary: "#056c47", "on-error": "#ffffff", "tertiary-fixed": "#ffdad7", "surface-container-high": "#eae7e7"}, borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"}, fontFamily: {headline: ["Inter"], body: ["Inter"], label: ["Inter"], display: "Inter"}}}};</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24
+        }
+        body {
+            min-height: 100dvh;
+            background-color: #FFFFFF;
+        }
+        .btn-airbnb {
+            background: linear-gradient(to right, #006A45 0%, #007a50 50%, #005a3a 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-airbnb-dark font-body">
+<!-- Top App Bar -->
+<header class="fixed top-0 w-full z-50 flex items-center justify-between px-6 py-4 bg-white border-b border-airbnb-border">
+<div class="flex items-center gap-4">
+<button class="active:scale-95 transition-transform text-airbnb-dark">
+<span class="material-symbols-outlined">close</span>
+</button>
+<h1 class="text-base font-bold text-airbnb-dark">Proposer un trajet</h1>
+</div>
+<div class="flex items-center gap-3">
+<div class="h-8 w-8 rounded-full border border-airbnb-border overflow-hidden">
+<img alt="Profile" class="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1EeCIEVhBG9ppAoHNwLNx6CvT_Y58d1GpEGg56u37KNBtappfnLxanGOk9Dn7vCzlRxDCtsjcQENAtQxWrU3fvR9Ut1t1dub6DZywSaHDutTAjRepgd-aGObR1L2PMXNwEuAFfC_bab00SR1_4H_dYtu-IhAfGT_vK_FdDsKaNcyKa6ttjSvbpp0VJVSbGWw5RlPHy2A91PZX5-rSXRLP8o8pdz5NeCejqtzuxr9jQg65MJB44LOOGZthM56lXaYKpXN4qdFmezM"/>
+</div>
+</div>
+</header>
+<main class="pt-20 pb-32 px-6 max-w-xl mx-auto">
+<!-- Introduction -->
+<div class="mb-10">
+<h2 class="text-3xl font-bold text-airbnb-dark tracking-tight mb-2">Configurez votre trajet</h2>
+<div class="flex items-center gap-2 py-3 px-4 bg-gray-50 rounded-xl border border-airbnb-border">
+<span class="material-symbols-outlined text-airbnb-red text-xl">event_seat</span>
+<p class="text-airbnb-dark font-medium">Destination : <span class="font-bold">Vendigris Party</span></p>
+</div>
+</div>
+<div class="space-y-12">
+<!-- Seat Selection Section -->
+<div class="space-y-6">
+<div class="flex justify-between items-center">
+<div>
+<h3 class="text-lg font-semibold text-airbnb-dark">Nombre de places</h3>
+<p class="text-sm text-airbnb-gray">Combien de passagers pouvez-vous prendre ?</p>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-8 h-8 rounded-full border border-airbnb-border flex items-center justify-center text-airbnb-dark active:scale-90 transition-all hover:bg-gray-50 disabled:opacity-30">
+<span class="material-symbols-outlined text-xl">remove</span>
+</button>
+<span class="text-xl font-medium text-airbnb-dark w-4 text-center">3</span>
+<button class="w-8 h-8 rounded-full border border-airbnb-border flex items-center justify-center text-airbnb-dark active:scale-90 transition-all hover:bg-gray-50">
+<span class="material-symbols-outlined text-xl">add</span>
+</button>
+</div>
+</div>
+<div class="h-px bg-airbnb-border"></div>
+</div>
+<!-- Time Selection Section -->
+<div class="space-y-6">
+<div class="flex justify-between items-center">
+<div>
+<h3 class="text-lg font-semibold text-airbnb-dark">Heure de départ</h3>
+<p class="text-sm text-airbnb-gray">À quelle heure quittez-vous votre position ?</p>
+</div>
+<button class="flex items-center gap-2 py-2 px-4 rounded-lg border border-airbnb-border font-medium text-airbnb-dark active:bg-gray-50 transition-colors">
+                        22:30
+                        <span class="material-symbols-outlined text-airbnb-gray text-xl">expand_more</span>
+</button>
+</div>
+<div class="h-px bg-airbnb-border"></div>
+</div>
+<!-- Additional Details Mock (AirBnB style) -->
+<div class="space-y-6">
+<div class="flex justify-between items-center">
+<div>
+<h3 class="text-lg font-semibold text-airbnb-dark">Prise en charge</h3>
+<p class="text-sm text-airbnb-gray">Votre position actuelle sera utilisée</p>
+</div>
+<span class="material-symbols-outlined text-airbnb-gray">location_on</span>
+</div>
+<div class="h-px bg-airbnb-border"></div>
+</div>
+</div>
+</main>
+<!-- Fixed Footer with Primary Action -->
+<footer class="fixed bottom-0 left-0 w-full bg-white border-t border-airbnb-border px-6 pt-4 pb-10 z-50">
+<div class="max-w-xl mx-auto flex items-center justify-between gap-4">
+<div class="hidden sm:block">
+<p class="text-xs font-bold uppercase text-airbnb-gray">Récapitulatif</p>
+<p class="text-sm font-medium text-airbnb-dark">3 places • 22:30</p>
+</div>
+<button class="flex-1 sm:flex-none sm:px-12 h-14 btn-airbnb rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg">
+                Lancer l'annonce
+            </button>
+</div>
+</footer>
+<!-- Status Bar Overlay (Mockup detail for immersion) -->
+<div class="fixed top-0 left-0 w-full h-8 z-[60] flex justify-between items-center px-6 text-airbnb-dark/40 font-medium text-xs pointer-events-none">
+<div>9:41</div>
+<div class="flex gap-1.5">
+<span class="material-symbols-outlined text-[14px]">signal_cellular_4_bar</span>
+<span class="material-symbols-outlined text-[14px]">wifi</span>
+<span class="material-symbols-outlined text-[14px]">battery_full</span>
+</div>
+</div>
+</body></html>

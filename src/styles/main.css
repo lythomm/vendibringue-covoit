@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #006A45;
+  --color-brand-secondary: #056c47;
+  --color-brand-surface: #fcf9f8;
+  --color-brand-on-surface: #1b1c1c;
+  --color-brand-outline: #bec9c0;
+  
+  --font-display: "Inter", sans-serif;
+  --font-body: "Inter", sans-serif;
+}
+
+:root {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  @apply bg-brand-surface text-brand-on-surface;
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#app {
+  width: 100%;
+}
+
+/* Marker Cluster Custom Styling */
+.marker-cluster-small {
+  background-color: rgba(245, 158, 11, 0.6);
+}
+.marker-cluster-small div {
+  background-color: rgba(245, 158, 11, 0.9);
+}
+
+.marker-cluster-medium {
+  background-color: rgba(109, 40, 217, 0.6);
+}
+.marker-cluster-medium div {
+  background-color: rgba(109, 40, 217, 0.9);
+}
+
+.marker-cluster-large {
+  background-color: rgba(244, 63, 94, 0.6);
+}
+.marker-cluster-large div {
+  background-color: rgba(244, 63, 94, 0.9);
+}
+
+.marker-cluster div {
+  @apply text-white font-bold;
+}

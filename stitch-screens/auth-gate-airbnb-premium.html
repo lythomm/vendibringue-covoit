@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+
+<html lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"surface-dim": "#dcd9d9", "tertiary-fixed-dim": "#ffb3af", "tertiary-container": "#934442", "on-primary-fixed": "#002112", "on-secondary-fixed-variant": "#005234", "on-primary-fixed-variant": "#005234", tertiary: "#752d2c", "surface-container-low": "#f6f3f2", secondary: "#056c47", "surface-container-high": "#eae7e7", error: "#ba1a1a", "on-background": "#1b1c1c", "on-error-container": "#93000a", "primary-container": "#006a45", "primary-fixed": "#9ef5c5", "surface-variant": "#e5e2e1", "surface-container-highest": "#e5e2e1", "surface-tint": "#056c47", "surface-container": "#f0eded", "on-secondary-fixed": "#002112", "on-surface": "#1b1c1c", "on-primary": "#ffffff", "secondary-fixed": "#9ef5c5", "on-tertiary-fixed": "#3e0408", surface: "#fcf9f8", "on-primary-container": "#91e7b8", "tertiary-fixed": "#ffdad7", "on-secondary-container": "#13724d", "surface-bright": "#fcf9f8", "on-tertiary-container": "#ffc8c5", "on-surface-variant": "#3f4942", background: "#fcf9f8", "on-tertiary-fixed-variant": "#782f2e", "secondary-container": "#9ef5c5", "outline-variant": "#bec9c0", "primary-fixed-dim": "#82d8aa", primary: "#004f33", "error-container": "#ffdad6", "inverse-surface": "#303030", "inverse-primary": "#82d8aa", "surface-container-lowest": "#ffffff", "secondary-fixed-dim": "#82d8aa", "on-secondary": "#ffffff", "inverse-on-surface": "#f3f0ef", outline: "#6f7a72", "on-tertiary": "#ffffff", "on-error": "#ffffff"}, borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"}, fontFamily: {headline: ["Inter"], body: ["Inter"], label: ["Inter"], display: "Inter"}}}};</script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface antialiased">
+<!-- Auth Gate Container -->
+<main class="min-h-screen flex flex-col items-center justify-start sm:justify-center px-6 py-8">
+<!-- Top Modal Header (Simulated) -->
+<div class="w-full max-w-[568px] mb-8 flex items-center border-b border-surface-container py-4 sm:hidden">
+<button class="p-2 -ml-2 rounded-full hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-on-surface" data-icon="close">close</span>
+</button>
+<h1 class="flex-grow text-center text-base font-semibold text-on-surface pr-8">Connexion ou inscription</h1>
+</div>
+<!-- Desktop Centered Card Structure -->
+<div class="w-full max-w-[568px] bg-surface-container-lowest sm:border sm:border-surface-container sm:rounded-xl sm:p-8 sm:shadow-sm">
+<!-- Desktop Headline -->
+<h2 class="hidden sm:block text-2xl font-semibold text-on-surface mb-8 tracking-tight">Bienvenue chez Editorial Hospitality</h2>
+<!-- Mobile Headline (Matches the user requirement) -->
+<h2 class="sm:hidden text-2xl font-semibold text-on-surface mb-6 tracking-tight">Connexion ou inscription</h2>
+<!-- Phone Input Field -->
+<div class="space-y-4">
+<div class="relative w-full border border-surface-container-high rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all">
+<div class="px-4 pt-3 pb-1 border-b border-surface-container-high">
+<label class="block text-[12px] font-medium text-on-surface-variant leading-tight" for="country">Pays/Région</label>
+<select class="w-full bg-transparent border-none p-0 text-base focus:ring-0 cursor-pointer" id="country">
+<option>France (+33)</option>
+<option>Belgique (+32)</option>
+<option>Suisse (+41)</option>
+<option>Canada (+1)</option>
+</select>
+</div>
+<div class="px-4 py-3">
+<label class="sr-only" for="phone">Numéro de téléphone</label>
+<input class="w-full bg-transparent border-none p-0 text-base focus:ring-0" id="phone" placeholder="Numéro de téléphone" type="tel"/>
+</div>
+</div>
+<p class="text-[12px] text-on-surface-variant leading-relaxed">
+          Nous vous appellerons ou vous enverrons un SMS pour confirmer votre numéro. Les frais standards d'envoi de messages et de données s'appliquent. 
+          <a class="font-semibold underline text-on-surface" href="#">Politique de confidentialité</a>
+</p>
+<!-- Primary Action Button -->
+<button class="w-full h-[52px] bg-primary text-white font-semibold text-base rounded-xl transition-transform active:scale-95 shadow-md">
+          Continuer
+        </button>
+</div>
+<!-- Divider -->
+<!-- Social Login Options -->
+</div>
+<!-- Background Decoration (Subtle Editorial Feel) -->
+<div class="fixed inset-0 -z-10 overflow-hidden opacity-30 pointer-events-none">
+<div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-primary-fixed filter blur-[120px]"></div>
+<div class="absolute top-[60%] -right-[5%] w-[30%] h-[30%] rounded-full bg-surface-dim filter blur-[100px]"></div>
+</div>
+</main>
+<!-- Footer Info (Minimalist Editorial) -->
+<footer class="w-full max-w-[568px] mx-auto mt-auto sm:mt-12 mb-8 px-6 text-center">
+<nav class="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-4">
+<a class="text-[12px] text-on-surface-variant hover:underline" href="#">Aide</a>
+<a class="text-[12px] text-on-surface-variant hover:underline" href="#">Confidentialité</a>
+<a class="text-[12px] text-on-surface-variant hover:underline" href="#">Conditions</a>
+</nav>
+<p class="text-[11px] text-on-surface-variant font-medium tracking-wide">© 2024 Editorial Hospitality. Tous droits réservés.</p>
+</footer>
+</body></html>

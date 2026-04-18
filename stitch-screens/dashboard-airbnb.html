@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {primary: "#004f33", "on-primary": "#ffffff", background: "#fcf9f8", surface: "#fcf9f8", "on-surface": "#1b1c1c", "on-surface-variant": "#3f4942", "outline-variant": "#bec9c0", "inverse-surface": "#303030", "secondary-fixed-dim": "#82d8aa", "on-primary-fixed-variant": "#005234", "on-tertiary-fixed-variant": "#782f2e", "on-secondary": "#ffffff", "on-secondary-container": "#13724d", "secondary-fixed": "#9ef5c5", "secondary-container": "#9ef5c5", "error-container": "#ffdad6", "on-primary-fixed": "#002112", "surface-dim": "#dcd9d9", "surface-variant": "#e5e2e1", "on-error-container": "#93000a", "on-secondary-fixed": "#002112", "inverse-on-surface": "#f3f0ef", "on-tertiary-fixed": "#3e0408", "surface-container-low": "#f6f3f2", "surface-container": "#f0eded", "surface-container-highest": "#e5e2e1", "tertiary-fixed-dim": "#ffb3af", tertiary: "#752d2c", "primary-fixed-dim": "#82d8aa", "on-background": "#1b1c1c", "tertiary-container": "#934442", "on-tertiary-container": "#ffc8c5", "inverse-primary": "#82d8aa", error: "#ba1a1a", "on-tertiary": "#ffffff", outline: "#6f7a72", "surface-container-lowest": "#ffffff", "surface-tint": "#056c47", "on-primary-container": "#91e7b8", "surface-bright": "#fcf9f8", "primary-container": "#006a45", "on-secondary-fixed-variant": "#005234", "primary-fixed": "#9ef5c5", secondary: "#056c47", "on-error": "#ffffff", "tertiary-fixed": "#ffdad7", "surface-container-high": "#eae7e7"}, borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"}, fontFamily: {headline: ["Inter"], body: ["Inter"], label: ["Inter"], display: "Inter"}}}};</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body {
+            min-height: 100dvh;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background font-body text-on-surface antialiased overflow-hidden h-screen flex flex-col">
+<!-- TopAppBar Section -->
+<header class="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-md border-b border-outline-variant">
+<div class="flex justify-between items-center px-6 py-4 w-full max-w-7xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="text-on-surface hover:bg-gray-100 p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="text-xl font-extrabold tracking-tight text-primary font-headline">Vendibringue</h1>
+</div>
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 rounded-full border border-outline-variant overflow-hidden hover:shadow-md transition-shadow">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Close-up portrait of a stylish young man with a slight smile in soft cinematic night lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQVuEx1jNoMfiEndeTCcA6DTdYiFSZ6Z0Jakffzzi1kU7nS5oT1gPC-IFOJjPjWZvingfjn-YnuX3YtwhSy90oT5pwiKywn8PIzKjsycgqUvZ9tXylUfXsK7QclqRMC0edAVw8JS07WcidbY7ONGb2EYtU4eFSItyKN8GaNF1yxqk5JkxZBcnqebq5CV7PY6ESFHB5fUY1ZsuZHFJ31ri2CTfFdwD50OXRbx3_PoNdnjsMRl34qTS0XvH4bVM7RWKaXzpeDgcabsY"/>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="relative flex-grow w-full">
+<!-- Map Background - Professional Integration -->
+<div class="absolute inset-0 z-0 bg-[#f7f7f7]">
+<img alt="Map" class="w-full h-full object-cover opacity-60 grayscale-[0.2]" data-alt="Light, clean minimalist city map showing streets and blocks in soft grey and white tones" data-location="Paris" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDT5hlUJLJFHlEq_tQAxfblcRelhTPfzrRi1ldBU5NH97JgdONM6in0OZTjXwqWM5UyNgMMu7QPuSbe2P0oIErmobHZCQWXaKpcvZHX2fDMFlRxCRrKPqeiwhn6V_MBJFvV5gnorBkMeQF_eBtmy9eWmtDUuqK8Y2ayX-OCELysFzt6YXfEhQcvwEadAU4KjBCrRVA9f4pamXI1IFr34FKdpgDcb9aD72IG7EF9kphk7GNVAZ6NZkQ8iNZXnPfhUZV-jXwNvhBMl44"/>
+<!-- Professional Markers -->
+<div class="absolute top-[35%] left-[45%] group cursor-pointer">
+<div class="relative w-6 h-6 bg-primary rounded-full border-2 border-white shadow-lg flex items-center justify-center">
+<div class="w-2 h-2 bg-white rounded-full"></div>
+</div>
+</div>
+<div class="absolute top-[55%] left-[30%] group cursor-pointer">
+<div class="relative w-6 h-6 bg-primary rounded-full border-2 border-white shadow-lg flex items-center justify-center">
+<div class="w-2 h-2 bg-white rounded-full"></div>
+</div>
+</div>
+</div>
+<!-- Floating UI Elements -->
+<div class="absolute top-24 right-6 flex flex-col gap-2 z-10">
+<button class="w-10 h-10 bg-white border border-outline-variant rounded-full flex items-center justify-center text-on-surface shadow-sm hover:shadow-md">
+<span class="material-symbols-outlined text-[20px]" data-icon="my_location">my_location</span>
+</button>
+<button class="w-10 h-10 bg-white border border-outline-variant rounded-full flex items-center justify-center text-on-surface shadow-sm hover:shadow-md">
+<span class="material-symbols-outlined text-[20px]" data-icon="layers">layers</span>
+</button>
+</div>
+<!-- Bottom Sheet (Passenger Mode Dashboard) -->
+<section class="absolute bottom-0 left-0 w-full z-40 bg-white rounded-t-[2rem] shadow-[0_-8px_40px_rgba(0,0,0,0.08)] border-t border-outline-variant max-h-[60%] flex flex-col">
+<!-- Drag Handle -->
+<div class="w-8 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1"></div>
+<!-- Header / Role Switcher -->
+<div class="px-6 py-4">
+<div class="bg-gray-100 p-1 rounded-full flex gap-1 w-full max-w-sm mx-auto">
+<button class="flex-1 py-2 px-4 rounded-full bg-white text-on-surface text-sm font-semibold shadow-sm flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="person_search" style="font-variation-settings: 'FILL' 1;">person_search</span>
+                    Je cherche
+                </button>
+<button class="flex-1 py-2 px-4 rounded-full text-on-surface-variant text-sm font-medium flex items-center justify-center gap-2 hover:bg-gray-200/50 transition-all">
+<span class="material-symbols-outlined text-sm" data-icon="directions_car">directions_car</span>
+                    Je propose
+                </button>
+</div>
+</div>
+<!-- Content Area -->
+<div class="px-6 pb-28 pt-2 overflow-y-auto no-scrollbar">
+<div class="flex justify-between items-center mb-6">
+<h2 class="font-headline text-2xl font-bold tracking-tight text-on-surface">Trajets à proximité</h2>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+<span class="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">En Direct</span>
+</div>
+</div>
+<!-- Ride Cards List -->
+<div class="space-y-4">
+<!-- Ride Card 1 -->
+<div class="bg-white border border-outline-variant p-4 rounded-xl flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer">
+<div class="relative">
+<img alt="Thomas" class="w-14 h-14 rounded-full object-cover border border-outline-variant" data-alt="Headshot of a friendly man with beard in soft neon ambient lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuATk4fT0DDZ1ZvkvRZJ2TGdDLJI_ys_1hZDTXRCPYTni22rKqQl53lTGTFg2uM-WxT4JrHfh1f1uu9yomHdTsrMexrPAchsp23PITswUGT82e1-sqCp7k85Rw_umLEXCj2gNzV5YhOKgTE9zkpX5-CaWtKez-EnusVm-WPsJSoN1lvS3i_dKE4IivQfwXnpUNikHWH3k8luvcPVU9rNuocsGb7HqZjqV0lvo8gSiSD5HJPRxzB6gTZdaNo2hv5gkqHGR7j1rDn507E"/>
+</div>
+<div class="flex-grow flex flex-col">
+<div class="flex justify-between items-start">
+<span class="font-bold text-[17px] text-on-surface">Thomas</span>
+<span class="text-primary font-bold text-[17px]">23:45</span>
+</div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-on-surface-variant text-sm">3 places libres</span>
+<span class="w-1 h-1 bg-gray-300 rounded-full"></span>
+<span class="text-[12px] font-bold text-gray-500 uppercase tracking-tight">Premium Safe</span>
+</div>
+</div>
+</div>
+<!-- Ride Card 2 -->
+<div class="bg-white border border-outline-variant p-4 rounded-xl flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer">
+<div class="relative">
+<img alt="Sarah" class="w-14 h-14 rounded-full object-cover border border-outline-variant" data-alt="Portrait of a young woman with smiling eyes under cool blue and green city night lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAz3OkscLly-9lA0EFiPM5rY82azDdajcrDCqYkIiXw6_cARFV-oojYylb4lU3EgOl8dKbX8es7idi0UHNlG7OBnd5yo-EXs8YzsIAe4ML56w0EawvEEBtHZsz8maHlRrwAXB6YE8cS-rsBAnBsXCVzg8YxhUWTEyeHPaXlkqaf7qlWjfJ69X8fO6gpq82sz5RQM6LD_F_aYZ4Sg6xZ_rVm1A-RYPWDcV6aoqk_Enq3z7w2I4ydEHLnY8mZF8nbEWrXB9GxUJFA0Fk"/>
+</div>
+<div class="flex-grow flex flex-col">
+<div class="flex justify-between items-start">
+<span class="font-bold text-[17px] text-on-surface">Sarah</span>
+<span class="text-primary font-bold text-[17px]">00:15</span>
+</div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-on-surface-variant text-sm">1 place restante</span>
+<span class="w-1 h-1 bg-gray-300 rounded-full"></span>
+<span class="text-primary text-[12px] font-bold uppercase">Dernière chance</span>
+</div>
+</div>
+</div>
+<!-- Ride Card 3 -->
+<div class="bg-white border border-outline-variant p-4 rounded-xl flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer">
+<div class="relative">
+<img alt="Marc" class="w-14 h-14 rounded-full object-cover border border-outline-variant" data-alt="Profile photo of a man in his 30s with short hair in dark cinematic car interior lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5LXHj9ALhrM4jBV7wVuXli3dClTj4ADmZ8RJ4PgWbv1xLpyG5bSr6uz_dq8E1ZG91SORJPcpo3q8ZmKI2OzGK9KMjb4n_sA-TlTimooP8ieabtYRmZyMXtnAlc5A8x-qfU3kCo94J0Q0ieH9-SbTow5abWjMzHPRKotgs5ZVFZVZgmhy-KTYTUFTfqaCJJ4VTMIpDp3gGetxZFU4xGreQA8Y7tpz4CP0_bdDHm1oFvnmnWCdGYYR8LzZfg6t6PROFC2NeC2pmJ8Q"/>
+</div>
+<div class="flex-grow flex flex-col">
+<div class="flex justify-between items-start">
+<span class="font-bold text-[17px] text-on-surface">Marc-Antoine</span>
+<span class="text-primary font-bold text-[17px]">00:30</span>
+</div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-on-surface-variant text-sm">2 places libres</span>
+<span class="w-1 h-1 bg-gray-300 rounded-full"></span>
+<span class="text-on-surface-variant text-[12px] italic">Trajet vérifié</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Section -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-8 pt-3 bg-white border-t border-outline-variant z-50">
+<a class="flex flex-col items-center justify-center text-primary transition-all group" href="#">
+<span class="material-symbols-outlined text-[28px]" data-icon="explore" style="font-variation-settings: 'FILL' 1;">explore</span>
+<span class="font-bold text-[10px] font-headline mt-1 uppercase tracking-tighter">Explorer</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-on-surface transition-all group" href="#">
+<span class="material-symbols-outlined text-[28px]" data-icon="directions_car">directions_car</span>
+<span class="font-medium text-[10px] font-headline mt-1 uppercase tracking-tighter">Mes trajets</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-on-surface transition-all group" href="#">
+<span class="material-symbols-outlined text-[28px]" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-medium text-[10px] font-headline mt-1 uppercase tracking-tighter">Messages</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-on-surface transition-all group" href="#">
+<span class="material-symbols-outlined text-[28px]" data-icon="person">person</span>
+<span class="font-medium text-[10px] font-headline mt-1 uppercase tracking-tighter">Profil</span>
+</a>
+</nav>
+</body></html>

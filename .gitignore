@@ -1,0 +1,27 @@
+# --- Configuration des Agents & IDE ---
+.antigravity/
+.agent/
+.vscode/
+.idea/
+
+# --- Secrets & Clés API (CRUCIAL) ---
+# Ne jamais publier ces fichiers
+.env
+.env.local
+.env.*.local
+*.secret
+config.json
+
+# --- Dossiers de compétences (Si tu veux garder le contrôle) ---
+# Si tu veux que les autres utilisent tes propres skills,
+# tu peux enlever cette ligne, mais pour le moment, c'est mieux de l'exclure
+
+# --- Dépendances ---
+node_modules/
+dist/
+build/
+.output/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
