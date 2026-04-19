@@ -72,6 +72,10 @@ const bookingError = ref<string | null>(null);
 const userCoords = ref<{ lat: number; lng: number } | null>(null);
 const showCancelConfirm = ref(false);
 const rideToCancel = ref<string | null>(null);
+const showDeleteRideConfirm = ref(false);
+const rideToDeleteId = ref<string | null>(null);
+const showRemoveParticipantConfirm = ref(false);
+const bookingToRemoveId = ref<string | null>(null);
 const isAvatarPickerOpen = ref(false);
 const avatarOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -100,10 +104,10 @@ function onSheetDragMove(e: TouchEvent) {
   if (!isDragging.value) return;
   const currentY = e.touches[0].clientY;
   const deltaY = currentY - dragStartY.value;
-  
+
   // We only allow dragging down for sheets (positive deltaY)
   // EXCEPT for the explorer which can also be dragged up if minimized
-  if (activeDraggingSheet.value === 'explorer') {
+  if (activeDraggingSheet.value === "explorer") {
     dragTranslateY.value = deltaY;
   } else if (deltaY > 0) {
     dragTranslateY.value = deltaY;
@@ -112,10 +116,10 @@ function onSheetDragMove(e: TouchEvent) {
 
 function onSheetDragEnd() {
   if (!isDragging.value) return;
-  
+
   const threshold = 100;
-  
-  if (activeDraggingSheet.value === 'explorer') {
+
+  if (activeDraggingSheet.value === "explorer") {
     if (dragTranslateY.value > threshold && !isSheetMinimized.value) {
       isSheetMinimized.value = true;
     } else if (dragTranslateY.value < -threshold && isSheetMinimized.value) {
@@ -124,10 +128,17 @@ function onSheetDragEnd() {
   } else {
     // Standard modal sheets
     if (dragTranslateY.value > threshold) {
-      if (activeDraggingSheet.value === 'selectedRide') selectedRide.value = null;
-      if (activeDraggingSheet.value === 'profile') profileSheetActive.value = false;
-      if (activeDraggingSheet.value === 'success') successSheetActive.value = false;
-      if (activeDraggingSheet.value === 'picking') pickingSheetActive.value = false;
+      if (activeDraggingSheet.value === "selectedRide")
+        selectedRide.value = null;
+      if (activeDraggingSheet.value === "profile")
+        profileSheetActive.value = false;
+      if (activeDraggingSheet.value === "success")
+        successSheetActive.value = false;
+      if (activeDraggingSheet.value === "picking") {
+        pickingSheetActive.value = false;
+        isEditing.value = false;
+        editingRideId.value = null;
+      }
     }
   }
 
@@ -139,11 +150,14 @@ function onSheetDragEnd() {
 function checkPWAStatus() {
   const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent);
   isIOS.value = isIOSDevice;
-  
+
   const isAndroidDevice = /Android/i.test(navigator.userAgent);
   isAndroid.value = isAndroidDevice;
-  
-  if (window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true) {
+
+  if (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (navigator as any).standalone === true
+  ) {
     isStandalone.value = true;
   }
 }
@@ -177,6 +191,8 @@ const newRide = ref({
 });
 
 const copySuccess = ref(false);
+const isEditing = ref(false);
+const editingRideId = ref<string | null>(null);
 
 function copyCoordinates() {
   const coords = `${eventData.value.center_lat}, ${eventData.value.center_lng}`;
@@ -251,7 +267,7 @@ const availableRides = computed(() => {
       return distA - distB;
     });
   }
-  
+
   return [...list].sort((a, b) => {
     const aUserRide = isPassenger(a.id);
     const bUserRide = isPassenger(b.id);
@@ -338,7 +354,12 @@ async function fetchRides() {
       id, driver_id, origin_name, origin_lat, origin_lng,
       total_seats, departure_time, status, description, created_at,
       profiles!rides_driver_id_fkey ( id, first_name, avatar_url, phone, instagram_id ),
-      bookings ( id, passenger_id, status )
+      bookings ( 
+        id, 
+        passenger_id, 
+        status,
+        profiles:passenger_id ( id, first_name, avatar_url, phone, instagram_id )
+      )
     `,
     )
     .eq("event_id", eventData.value.id)
@@ -491,7 +512,9 @@ function updateMarkers() {
       marker.on("click", () => {
         selectedRide.value = ride;
         if (ride.driver_id === auth.user?.id) {
-          currentRole.value = "driver";
+          currentTab.value = "driver";
+          isSheetMinimized.value = false;
+        } else {
           isSheetMinimized.value = false;
         }
       });
@@ -697,11 +720,19 @@ function startPicking() {
     showBookingError("Tu as déjà un trajet en cours !");
     return;
   }
+  if (myBookedRides.value.length > 0) {
+    showBookingError(
+      "Tu as déjà une réservation en cours ! Libère ta place avant de proposer un trajet.",
+    );
+    return;
+  }
   closeAllPanels();
   // Clear previous data
   newRide.value.origin_name = "";
   newRide.value.total_seats = 3;
   newRide.value.departure_time = "20:00";
+  isEditing.value = false;
+  editingRideId.value = null;
 
   isPickingLocation.value = true;
   currentTab.value = "explorer"; // ensure we see the map
@@ -752,16 +783,25 @@ async function confirmLocation() {
 async function submitRide() {
   if (!pickedCoords.value || !eventData.value) return;
 
-  if (myRide.value) {
+  if (myRide.value && !isEditing.value) {
     showBookingError("Tu as déjà un trajet en cours !");
     return;
   }
 
-  // Create an ISO string for today + selected time
-  const today = new Date().toISOString().split("T")[0];
-  const departureStr = `${today}T${newRide.value.departure_time}:00`;
+  if (myBookedRides.value.length > 0 && !isEditing.value) {
+    showBookingError(
+      "Tu as déjà une réservation en cours ! Libère ta place avant de proposer un trajet.",
+    );
+    return;
+  }
 
-  const { error } = await supabase.from("rides").insert({
+  // Create an ISO string for today + selected time (handling local timezone)
+  const [hours, minutes] = newRide.value.departure_time.split(':').map(Number);
+  const departureDate = new Date();
+  departureDate.setHours(hours, minutes, 0, 0);
+  const departureStr = departureDate.toISOString();
+
+  const rideData = {
     event_id: eventData.value.id,
     driver_id: auth.user?.id,
     origin_name: newRide.value.origin_name || "Ma position",
@@ -769,18 +809,101 @@ async function submitRide() {
     origin_lng: pickedCoords.value.lng,
     total_seats: newRide.value.total_seats,
     departure_time: departureStr,
-  });
+  };
+
+  let error;
+  if (isEditing.value && editingRideId.value) {
+    const { error: err } = await supabase
+      .from("rides")
+      .update(rideData)
+      .eq("id", editingRideId.value);
+    error = err;
+  } else {
+    const { error: err } = await supabase.from("rides").insert(rideData);
+    error = err;
+  }
 
   if (error) {
     if (error.code === "23505") {
       showBookingError("Tu as déjà un trajet actif !");
     } else {
-      alert("Erreur lors de la création : " + error.message);
+      alert("Erreur : " + error.message);
     }
   } else {
     pickingSheetActive.value = false;
+    isEditing.value = false;
+    editingRideId.value = null;
     await fetchRides();
     currentRole.value = "driver"; // just in case
+  }
+}
+
+async function deleteRide(rideId: string) {
+  rideToDeleteId.value = rideId;
+  showDeleteRideConfirm.value = true;
+}
+
+async function confirmDeleteRide() {
+  if (!rideToDeleteId.value) return;
+
+  const { error } = await supabase
+    .from("rides")
+    .delete()
+    .eq("id", rideToDeleteId.value);
+
+  if (error) {
+    alert("Erreur lors de la suppression : " + error.message);
+  } else {
+    selectedRide.value = null;
+    showDeleteRideConfirm.value = false;
+    rideToDeleteId.value = null;
+    await fetchRides();
+  }
+}
+
+function editRide(ride: any) {
+  isEditing.value = true;
+  editingRideId.value = ride.id;
+  newRide.value = {
+    origin_name: ride.origin_name,
+    total_seats: ride.total_seats,
+    departure_time: formatTimeOnly(ride.departure_time),
+  };
+  pickedCoords.value = { lat: ride.origin_lat, lng: ride.origin_lng };
+  selectedRide.value = null;
+  pickingSheetActive.value = true;
+}
+
+function formatTimeOnly(iso: string) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+async function removeParticipant(bookingId: string) {
+  bookingToRemoveId.value = bookingId;
+  showRemoveParticipantConfirm.value = true;
+}
+
+async function confirmRemoveParticipant() {
+  if (!bookingToRemoveId.value) return;
+
+  const { error } = await supabase
+    .from("bookings")
+    .delete()
+    .eq("id", bookingToRemoveId.value);
+
+  if (error) {
+    alert("Erreur lors du retrait : " + error.message);
+  } else {
+    showRemoveParticipantConfirm.value = false;
+    bookingToRemoveId.value = null;
+    await fetchRides();
+    // Update selectedRide locally to refresh the UI
+    if (selectedRide.value && selectedRide.value.bookings) {
+      selectedRide.value.bookings = selectedRide.value.bookings.filter(
+        (b: any) => b.id !== bookingToRemoveId.value,
+      );
+    }
   }
 }
 
@@ -838,13 +961,16 @@ async function bookSeat() {
     bookingLoading.value = false;
   } else {
     // Optimistic UI update
-    const rideIndex = rides.value.findIndex(r => r.id === selectedRide.value?.id);
+    const rideIndex = rides.value.findIndex(
+      (r) => r.id === selectedRide.value?.id,
+    );
     if (rideIndex !== -1 && auth.user) {
-      if (!rides.value[rideIndex].bookings) rides.value[rideIndex].bookings = [];
+      if (!rides.value[rideIndex].bookings)
+        rides.value[rideIndex].bookings = [];
       rides.value[rideIndex].bookings.push({
         id: "temp-" + Date.now(),
         passenger_id: auth.user.id,
-        status: "confirmed"
+        status: "confirmed",
       });
     }
 
@@ -877,12 +1003,12 @@ async function confirmCancelBooking() {
     bookingLoading.value = false;
   } else {
     // Optimistic UI update
-    const rideIndex = rides.value.findIndex(r => r.id === rideToCancel.value);
+    const rideIndex = rides.value.findIndex((r) => r.id === rideToCancel.value);
     if (rideIndex !== -1 && auth.user) {
       if (rides.value[rideIndex].bookings) {
-        rides.value[rideIndex].bookings = rides.value[rideIndex].bookings.filter(
-          (b: any) => b.passenger_id !== auth.user!.id
-        );
+        rides.value[rideIndex].bookings = rides.value[
+          rideIndex
+        ].bookings.filter((b: any) => b.passenger_id !== auth.user!.id);
       }
     }
 
@@ -994,7 +1120,7 @@ onMounted(async () => {
   checkPWAStatus();
   window.addEventListener("online", updateOnlineStatus);
   window.addEventListener("offline", updateOnlineStatus);
-  
+
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     deferredPrompt.value = e;
@@ -1005,7 +1131,11 @@ onMounted(async () => {
     }
   });
 
-  if (isIOS.value && !isStandalone.value && !localStorage.getItem("vb_install_dismissed")) {
+  if (
+    isIOS.value &&
+    !isStandalone.value &&
+    !localStorage.getItem("vb_install_dismissed")
+  ) {
     setTimeout(() => {
       showInstallBanner.value = true;
     }, 4000);
@@ -1084,7 +1214,8 @@ onUnmounted(() => {
                 Garde VendiCovoit sous la main !
               </p>
               <p class="text-[11px] font-bold text-white/80 leading-snug">
-                Installe l'app sur ton écran d'accueil pour un accès ultra-rapide et ne rater aucune place.
+                Installe l'app sur ton écran d'accueil pour un accès
+                ultra-rapide et ne rater aucune place.
               </p>
             </div>
             <button
@@ -1283,8 +1414,18 @@ onUnmounted(() => {
       <!-- Bottom Sheet -->
       <section
         class="bg-white/80 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 flex flex-col transition-all duration-500 overflow-hidden"
-        :class="[isSheetMinimized ? 'max-h-[40px]' : 'max-h-[75vh]', isDragging && activeDraggingSheet === 'explorer' ? 'transition-none' : '']"
-        :style="{ transform: isDragging && activeDraggingSheet === 'explorer' ? `translateY(${dragTranslateY}px)` : '' }"
+        :class="[
+          isSheetMinimized ? 'max-h-[40px]' : 'max-h-[75vh]',
+          isDragging && activeDraggingSheet === 'explorer'
+            ? 'transition-none'
+            : '',
+        ]"
+        :style="{
+          transform:
+            isDragging && activeDraggingSheet === 'explorer'
+              ? `translateY(${dragTranslateY}px)`
+              : '',
+        }"
       >
         <!-- Drag Handle / Grabber -->
         <div
@@ -1564,7 +1705,7 @@ onUnmounted(() => {
           <!-- Driver UI -->
           <template v-else>
             <!-- Mon trajet proposé -->
-            <div v-if="myRide" class="space-y-4">
+            <div v-if="myRide" class="space-y-6">
               <div
                 @click="selectedRide = myRide"
                 class="bg-white border-2 border-[#4285F4]/10 p-5 rounded-[2.5rem] flex items-center gap-5 hover:border-[#4285F4]/30 transition-all cursor-pointer relative overflow-hidden group active:scale-[0.98]"
@@ -1625,6 +1766,104 @@ onUnmounted(() => {
                       / {{ myRide.total_seats }} passagers
                     </span>
                   </div>
+                </div>
+              </div>
+
+              <!-- Integrated Management Section -->
+              <div class="space-y-6 px-1">
+                <!-- Participants List -->
+                <div>
+                  <label
+                    class="block text-[10px] font-black uppercase tracking-widest text-brand-on-surface/30 mb-4 px-1"
+                  >
+                    Passagers ({{ myRide.bookings?.length || 0 }} /
+                    {{ myRide.total_seats }})
+                  </label>
+
+                  <div
+                    v-if="!myRide.bookings || myRide.bookings.length === 0"
+                    class="py-8 bg-brand-on-surface/[0.02] rounded-3xl border border-dashed border-brand-outline/10 text-center"
+                  >
+                    <div
+                      class="w-10 h-10 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm"
+                    >
+                      <span
+                        class="material-symbols-outlined text-brand-on-surface/20"
+                        >person_add</span
+                      >
+                    </div>
+                    <p class="text-brand-on-surface/40 font-bold text-xs italic">
+                      Aucune réservation pour le moment
+                    </p>
+                  </div>
+
+                  <div v-else class="space-y-3">
+                    <div
+                      v-for="booking in myRide.bookings"
+                      :key="booking.id"
+                      class="flex items-center gap-4 p-4 bg-white rounded-2xl border border-brand-outline/10 shadow-sm transition-all hover:shadow-md"
+                    >
+                      <img
+                        :src="getAvatarUrl(booking.profiles?.avatar_url)"
+                        class="w-10 h-10 rounded-full bg-brand-surface object-cover border border-brand-outline/5"
+                      />
+                      <div class="flex-1 min-w-0">
+                        <p
+                          class="font-black text-sm text-brand-on-surface truncate"
+                        >
+                          {{ booking.profiles?.first_name }}
+                        </p>
+                        <a
+                          v-if="booking.profiles?.phone"
+                          :href="'sms:' + booking.profiles.phone"
+                          class="flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-all"
+                        >
+                          <span class="material-symbols-outlined !text-[12px]"
+                            >sms</span
+                          >
+                          <p class="text-[10px] font-bold">
+                            {{ booking.profiles?.phone }}
+                          </p>
+                        </a>
+                        <div v-else class="flex items-center gap-1.5 opacity-40">
+                          <span class="material-symbols-outlined !text-[12px]"
+                            >block</span
+                          >
+                          <p class="text-[10px] font-bold">Pas de numéro</p>
+                        </div>
+                      </div>
+                      <button
+                        @click="removeParticipant(booking.id)"
+                        class="w-10 h-10 flex items-center justify-center text-red-500 bg-red-50 rounded-xl transition-all active:scale-95"
+                        title="Retirer le passager"
+                      >
+                        <span class="material-symbols-outlined !text-[18px]"
+                          >person_remove</span
+                        >
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-3 pt-2">
+                  <button
+                    @click="editRide(myRide)"
+                    class="flex-[2] py-4 bg-brand-on-surface text-white font-black text-sm rounded-2xl active:scale-95 transition-all shadow-lg shadow-brand-on-surface/10 flex items-center justify-center gap-2"
+                  >
+                    <span class="material-symbols-outlined !text-[18px]"
+                      >edit</span
+                    >
+                    Modifier
+                  </button>
+                  <button
+                    @click="deleteRide(myRide.id)"
+                    class="flex-1 py-4 bg-[#FFF0F0] text-[#FF4B4B] font-black text-sm rounded-2xl active:scale-95 transition-all border border-[#FF4B4B]/10 flex items-center justify-center gap-2"
+                  >
+                    <span class="material-symbols-outlined !text-[18px]"
+                      >delete</span
+                    >
+                  </button>
                 </div>
               </div>
             </div>
@@ -1713,7 +1952,12 @@ onUnmounted(() => {
       <section
         v-if="pickingSheetActive"
         class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[60] flex flex-col transition-all duration-300"
-        :style="{ transform: isDragging && activeDraggingSheet === 'picking' ? `translateY(${dragTranslateY}px)` : '' }"
+        :style="{
+          transform:
+            isDragging && activeDraggingSheet === 'picking'
+              ? `translateY(${dragTranslateY}px)`
+              : '',
+        }"
       >
         <!-- Drag Handle -->
         <div
@@ -1725,7 +1969,9 @@ onUnmounted(() => {
           <div class="w-10 h-1.5 bg-brand-on-surface/10 rounded-full"></div>
         </div>
         <div class="px-6 py-6 pb-12">
-          <h2 class="text-2xl font-black mb-8">Derniers réglages</h2>
+          <h2 class="text-2xl font-black mb-8">
+            {{ isEditing ? "Modifier mon trajet" : "Derniers réglages" }}
+          </h2>
 
           <!-- Origin Name Input -->
           <div class="mb-10">
@@ -1798,14 +2044,18 @@ onUnmounted(() => {
               @click="submitRide"
               class="flex-[3] py-4 bg-[#4285F4] text-white font-black text-lg rounded-2xl shadow-2xl shadow-[#4285F4]/30 active:scale-95 transition-all"
             >
-              Diffuser l'annonce
+              {{
+                isEditing
+                  ? "Enregistrer les modifications"
+                  : "Diffuser l'annonce"
+              }}
             </button>
           </div>
         </div>
       </section>
     </Transition>
 
-    <!-- Ride Details Sheet (Passenger) -->
+    <!-- Ride Details Sheet -->
     <Transition
       enter-active-class="transition duration-500 cubic-bezier(0.16, 1, 0.3, 1)"
       enter-from-class="translate-y-full"
@@ -1817,21 +2067,25 @@ onUnmounted(() => {
       <section
         v-if="selectedRide && selectedRide.driver_id !== auth.user?.id"
         class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[60] flex flex-col transition-all duration-300"
-        :class="[isDragging && activeDraggingSheet === 'selectedRide' ? 'transition-none' : '']"
-        :style="{ transform: isDragging && activeDraggingSheet === 'selectedRide' ? `translateY(${dragTranslateY}px)` : '' }"
+        :style="{
+          transform:
+            isDragging && activeDraggingSheet === 'selectedRide'
+              ? `translateY(${dragTranslateY}px)`
+              : '',
+        }"
       >
         <!-- Drag Handle -->
         <div
+          class="w-full flex justify-center py-4"
           @touchstart="onSheetDragStart($event, 'selectedRide')"
           @touchmove="onSheetDragMove"
           @touchend="onSheetDragEnd"
-          class="w-full py-4 cursor-pointer group"
         >
-          <div
-            class="w-10 h-1 bg-brand-on-surface/10 rounded-full mx-auto group-active:bg-brand-on-surface/20 transition-colors"
-          ></div>
+          <div class="w-10 h-1.5 bg-brand-on-surface/10 rounded-full"></div>
         </div>
-        <div class="px-6 py-6 pb-12">
+
+        <!-- PASSENGER VIEW -->
+        <div class="px-6 pb-6">
           <div class="flex items-center gap-4 mb-8">
             <img
               :src="getAvatarUrl(selectedRide.profiles?.avatar_url)"
@@ -1855,28 +2109,45 @@ onUnmounted(() => {
                     )
                   }}
                 </p>
-                <p
-                  v-if="userCoords"
-                  class="text-brand-on-surface/50 font-bold flex items-center"
-                >
-                  <span
-                    class="text-[10px] font-black text-brand-primary bg-brand-primary/10 px-2.5 py-1 rounded-full border border-brand-primary/10 mr-2 mt-1 flex items-center"
+                <div class="flex items-center justify-center overflow-x-auto">
+                  <a
+                    v-if="selectedRide.profiles?.phone"
+                    :href="'sms:' + selectedRide.profiles.phone"
+                    class="size-10 flex items-center justify-center active:scale-95 transition-all"
+                    title="Envoyer un SMS"
                   >
-                    <span
-                      class="material-symbols-outlined !text-[12px] mr-1 opacity-70"
-                      >near_me</span
-                    >
-                    {{
-                      getDistance(
-                        userCoords.lat,
-                        userCoords.lng,
-                        selectedRide.origin_lat,
-                        selectedRide.origin_lng,
-                      ).toFixed(0)
-                    }}
-                    km
-                  </span>
-                </p>
+                    <span class="material-symbols-outlined">sms</span>
+                  </a>
+                  <a
+                    v-if="selectedRide.profiles?.phone"
+                    :href="getWhatsAppLink(selectedRide.profiles.phone)"
+                    target="_blank"
+                    class="size-10 flex items-center justify-center active:scale-95 transition-all"
+                    title="WhatsApp"
+                  >
+                    <img
+                      src="https://img.icons8.com/color/48/whatsapp.png"
+                      class="size-8"
+                      alt="WhatsApp"
+                    />
+                  </a>
+                  <a
+                    v-if="selectedRide.profiles?.instagram_id"
+                    :href="
+                      'https://instagram.com/' +
+                      selectedRide.profiles.instagram_id.replace('@', '')
+                    "
+                    target="_blank"
+                    class="size-10 flex items-center justify-center active:scale-95 transition-all"
+                    title="Instagram"
+                  >
+                    <img
+                      src="https://img.icons8.com/color/48/instagram-new.png"
+                      class="w-8 h-8"
+                      alt="Instagram"
+                    />
+                  </a>
+                </div>
               </div>
             </div>
             <div class="ml-auto text-right">
@@ -1911,46 +2182,80 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div
-            class="flex items-center justify-center gap-4 mb-8 overflow-x-auto pb-2 -mx-2 px-2 scrollbar-hide"
-          >
-            <a
-              v-if="selectedRide.profiles?.phone"
-              :href="getWhatsAppLink(selectedRide.profiles.phone)"
-              target="_blank"
-              class="w-14 h-14 bg-white border border-brand-outline/10 rounded-2xl flex items-center justify-center shadow-lg shadow-green-500/10 active:scale-95 transition-all"
-              title="WhatsApp"
+          <!-- Participants List -->
+          <div class="mb-8">
+            <label
+              class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-4"
             >
-              <img
-                src="https://img.icons8.com/color/48/whatsapp.png"
-                class="w-8 h-8"
-                alt="WhatsApp"
-              />
-            </a>
-            <a
-              v-if="selectedRide.profiles?.phone"
-              :href="'tel:' + selectedRide.profiles.phone"
-              class="w-14 h-14 bg-white border border-brand-outline/10 rounded-2xl flex items-center justify-center text-brand-on-surface shadow-lg active:scale-95 transition-all"
-              title="Appeler"
-            >
-              <span class="material-symbols-outlined text-[28px]">call</span>
-            </a>
-            <a
-              v-if="selectedRide.profiles?.instagram_id"
-              :href="
-                'https://instagram.com/' +
-                selectedRide.profiles.instagram_id.replace('@', '')
+              Passagers ({{ selectedRide.bookings?.length || 0 }} /
+              {{ selectedRide.total_seats }})
+            </label>
+
+            <div
+              v-if="
+                !selectedRide.bookings || selectedRide.bookings.length === 0
               "
-              target="_blank"
-              class="w-14 h-14 bg-white border border-brand-outline/10 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-500/10 active:scale-95 transition-all"
-              title="Instagram"
+              class="py-6 bg-brand-on-surface/[0.02] rounded-2xl border border-dashed border-brand-outline/20 text-center"
             >
-              <img
-                src="https://img.icons8.com/color/48/instagram-new.png"
-                class="w-8 h-8"
-                alt="Instagram"
-              />
-            </a>
+              <p class="text-brand-on-surface/40 font-bold text-xs italic">
+                Soyez le premier à rejoindre !
+              </p>
+            </div>
+
+            <div v-else class="space-y-3">
+              <div
+                v-for="booking in selectedRide.bookings"
+                :key="booking.id"
+                class="flex items-center gap-3 p-3 bg-brand-on-surface/[0.03] rounded-2xl border border-brand-outline/10"
+              >
+                <img
+                  :src="getAvatarUrl(booking.profiles?.avatar_url)"
+                  class="w-8 h-8 rounded-full bg-white shadow-sm"
+                />
+                <div class="flex-1">
+                  <p class="font-black text-sm text-brand-on-surface">
+                    {{ booking.profiles?.first_name }}
+                  </p>
+                </div>
+                <!-- Contact icons for participants -->
+                <div class="flex gap-2">
+                  <a
+                    v-if="booking.profiles?.phone"
+                    :href="getWhatsAppLink(booking.profiles.phone)"
+                    target="_blank"
+                    class="w-8 h-8 bg-white border border-brand-outline/5 rounded-xl flex items-center justify-center shadow-sm active:scale-90 transition-all"
+                  >
+                    <img
+                      src="https://img.icons8.com/color/48/whatsapp.png"
+                      class="w-5 h-5"
+                      alt="WA"
+                    />
+                  </a>
+                  <a
+                    v-if="booking.profiles?.phone"
+                    :href="'sms:' + booking.profiles.phone"
+                    class="w-8 h-8 bg-white border border-brand-outline/5 rounded-xl flex items-center justify-center text-brand-on-surface shadow-sm active:scale-90 transition-all"
+                  >
+                    <span class="material-symbols-outlined !text-[18px]">sms</span>
+                  </a>
+                  <a
+                    v-if="booking.profiles?.instagram_id"
+                    :href="
+                      'https://instagram.com/' +
+                      booking.profiles.instagram_id.replace('@', '')
+                    "
+                    target="_blank"
+                    class="w-8 h-8 bg-white border border-brand-outline/5 rounded-xl flex items-center justify-center shadow-sm active:scale-90 transition-all"
+                  >
+                    <img
+                      src="https://img.icons8.com/color/48/instagram-new.png"
+                      class="w-5 h-5"
+                      alt="IG"
+                    />
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="flex gap-4">
@@ -2122,9 +2427,7 @@ onUnmounted(() => {
 
             <!-- Save Changes Button if modified -->
             <button
-              v-if="
-                JSON.stringify(editedProfile) !== JSON.stringify(auth.user)
-              "
+              v-if="JSON.stringify(editedProfile) !== JSON.stringify(auth.user)"
               @click="updateProfile"
               class="w-full py-4 mb-4 bg-brand-primary text-white font-black text-lg rounded-[20px] shadow-xl shadow-brand-primary/20 active:scale-95 transition-all"
             >
@@ -2170,8 +2473,17 @@ onUnmounted(() => {
       <section
         v-if="successSheetActive"
         class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[70] flex flex-col transition-all duration-300 text-center"
-        :class="[isDragging && activeDraggingSheet === 'success' ? 'transition-none' : '']"
-        :style="{ transform: isDragging && activeDraggingSheet === 'success' ? `translateY(${dragTranslateY}px)` : '' }"
+        :class="[
+          isDragging && activeDraggingSheet === 'success'
+            ? 'transition-none'
+            : '',
+        ]"
+        :style="{
+          transform:
+            isDragging && activeDraggingSheet === 'success'
+              ? `translateY(${dragTranslateY}px)`
+              : '',
+        }"
       >
         <!-- Drag Handle -->
         <div
@@ -2193,7 +2505,8 @@ onUnmounted(() => {
           </div>
           <h2 class="text-2xl font-black mb-2">C'est réservé !</h2>
           <p class="text-brand-on-surface/50 font-bold mb-8">
-            Tu as ta place pour la Vendigris. Prépare tes chaussures de danse !
+            Tu as ta place pour la VendiBringue. Prépare tes chaussures de danse
+            !
           </p>
 
           <div v-if="lastBookedRide" class="mb-10">
@@ -2218,11 +2531,11 @@ onUnmounted(() => {
               </a>
               <a
                 v-if="lastBookedRide.profiles?.phone"
-                :href="'tel:' + lastBookedRide.profiles.phone"
+                :href="'sms:' + lastBookedRide.profiles.phone"
                 class="w-14 h-14 bg-white border border-brand-outline/10 rounded-2xl flex items-center justify-center text-brand-on-surface shadow-lg active:scale-95 transition-all"
-                title="Appeler"
+                title="Envoyer un SMS"
               >
-                <span class="material-symbols-outlined text-[28px]">call</span>
+                <span class="material-symbols-outlined text-[28px]">sms</span>
               </a>
               <a
                 v-if="lastBookedRide.profiles?.instagram_id"
@@ -2318,6 +2631,7 @@ onUnmounted(() => {
       </div>
     </Transition>
 
+
     <!-- Cancel Confirmation Modal -->
     <Transition
       enter-active-class="transition-opacity duration-200"
@@ -2330,7 +2644,7 @@ onUnmounted(() => {
       <div
         v-if="showCancelConfirm"
         class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-        @click.self="closeCancelConfirm"
+        @click.self="showCancelConfirm = false"
       >
         <div
           class="bg-white rounded-3xl p-6 w-full max-w-[320px] shadow-2xl flex flex-col items-center text-center transform scale-100"
@@ -2346,7 +2660,7 @@ onUnmounted(() => {
           </p>
           <div class="flex gap-3 w-full">
             <button
-              @click="closeCancelConfirm"
+              @click="showCancelConfirm = false"
               class="flex-1 py-3.5 bg-gray-100 text-brand-on-surface font-bold rounded-2xl active:scale-95 transition-all"
             >
               Annuler
@@ -2362,6 +2676,97 @@ onUnmounted(() => {
                 >refresh</span
               >
               <span v-else>Confirmer</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Delete Ride Confirmation Modal -->
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-200"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showDeleteRideConfirm"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        @click.self="showDeleteRideConfirm = false"
+      >
+        <div
+          class="bg-white rounded-3xl p-6 w-full max-w-[320px] shadow-2xl flex flex-col items-center text-center"
+        >
+          <div
+            class="h-16 w-16 bg-[#FFF0F0] text-[#FF4B4B] rounded-full flex items-center justify-center mb-4"
+          >
+            <span class="material-symbols-outlined !text-[32px]">delete</span>
+          </div>
+          <h3 class="font-black text-xl mb-2">Supprimer le trajet ?</h3>
+          <p class="text-brand-on-surface/60 font-medium mb-6 text-sm">
+            Es-tu sûr de vouloir supprimer ce trajet ? Toutes les réservations
+            seront annulées.
+          </p>
+          <div class="flex gap-3 w-full">
+            <button
+              @click="showDeleteRideConfirm = false"
+              class="flex-1 py-3.5 bg-gray-100 text-brand-on-surface font-bold rounded-2xl active:scale-95 transition-all"
+            >
+              Annuler
+            </button>
+            <button
+              @click="confirmDeleteRide"
+              class="flex-1 py-3.5 bg-[#FF4B4B] text-white font-bold rounded-2xl active:scale-95 transition-all"
+            >
+              Supprimer
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Remove Participant Confirmation Modal -->
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-200"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showRemoveParticipantConfirm"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        @click.self="showRemoveParticipantConfirm = false"
+      >
+        <div
+          class="bg-white rounded-3xl p-6 w-full max-w-[320px] shadow-2xl flex flex-col items-center text-center"
+        >
+          <div
+            class="h-16 w-16 bg-brand-primary/10 text-brand-primary rounded-full flex items-center justify-center mb-4"
+          >
+            <span class="material-symbols-outlined !text-[32px]"
+              >person_remove</span
+            >
+          </div>
+          <h3 class="font-black text-xl mb-2">Retirer passager ?</h3>
+          <p class="text-brand-on-surface/60 font-medium mb-6 text-sm">
+            Es-tu sûr de vouloir retirer ce passager de ton trajet ?
+          </p>
+          <div class="flex gap-3 w-full">
+            <button
+              @click="showRemoveParticipantConfirm = false"
+              class="flex-1 py-3.5 bg-gray-100 text-brand-on-surface font-bold rounded-2xl active:scale-95 transition-all"
+            >
+              Annuler
+            </button>
+            <button
+              @click="confirmRemoveParticipant"
+              class="flex-1 py-3.5 bg-brand-primary text-white font-bold rounded-2xl active:scale-95 transition-all"
+            >
+              Confirmer
             </button>
           </div>
         </div>
@@ -2419,10 +2824,17 @@ onUnmounted(() => {
               </div>
               <div class="pt-1.5">
                 <p class="text-sm font-black mb-1 flex items-center gap-2">
-                  Appuie sur <span class="material-symbols-outlined text-[18px]">ios_share</span> Partager
+                  Appuie sur
+                  <span class="material-symbols-outlined text-[18px]"
+                    >ios_share</span
+                  >
+                  Partager
                 </p>
-                <p class="text-[12px] font-bold text-brand-on-surface/40 leading-snug">
-                  C'est le petit carré avec la flèche vers le haut dans ta barre Safari.
+                <p
+                  class="text-[12px] font-bold text-brand-on-surface/40 leading-snug"
+                >
+                  C'est le petit carré avec la flèche vers le haut dans ta barre
+                  Safari.
                 </p>
               </div>
             </div>
@@ -2435,10 +2847,16 @@ onUnmounted(() => {
               </div>
               <div class="pt-1.5">
                 <p class="text-sm font-black mb-1 flex items-center gap-2">
-                  <span class="material-symbols-outlined text-[18px]">add_box</span> Sur l'écran d'accueil
+                  <span class="material-symbols-outlined text-[18px]"
+                    >add_box</span
+                  >
+                  Sur l'écran d'accueil
                 </p>
-                <p class="text-[12px] font-bold text-brand-on-surface/40 leading-snug">
-                  Fais défiler les options et clique sur le "+". Et paf, c'est installé !
+                <p
+                  class="text-[12px] font-bold text-brand-on-surface/40 leading-snug"
+                >
+                  Fais défiler les options et clique sur le "+". Et paf, c'est
+                  installé !
                 </p>
               </div>
             </div>
@@ -2505,9 +2923,15 @@ onUnmounted(() => {
               </div>
               <div class="pt-1.5">
                 <p class="text-sm font-black mb-1 flex items-center gap-2">
-                  Appuie sur <span class="material-symbols-outlined text-[18px]">more_vert</span> Menu
+                  Appuie sur
+                  <span class="material-symbols-outlined text-[18px]"
+                    >more_vert</span
+                  >
+                  Menu
                 </p>
-                <p class="text-[12px] font-bold text-brand-on-surface/40 leading-snug">
+                <p
+                  class="text-[12px] font-bold text-brand-on-surface/40 leading-snug"
+                >
                   Les trois petits points en haut à droite (Chrome) ou en bas.
                 </p>
               </div>
@@ -2521,10 +2945,16 @@ onUnmounted(() => {
               </div>
               <div class="pt-1.5">
                 <p class="text-sm font-black mb-1 flex items-center gap-2">
-                  <span class="material-symbols-outlined text-[18px]">add_to_home_screen</span> Installer l'app
+                  <span class="material-symbols-outlined text-[18px]"
+                    >add_to_home_screen</span
+                  >
+                  Installer l'app
                 </p>
-                <p class="text-[12px] font-bold text-brand-on-surface/40 leading-snug">
-                  Cherche "Installer l'application" ou "Ajouter à l'écran d'accueil".
+                <p
+                  class="text-[12px] font-bold text-brand-on-surface/40 leading-snug"
+                >
+                  Cherche "Installer l'application" ou "Ajouter à l'écran
+                  d'accueil".
                 </p>
               </div>
             </div>
@@ -2542,9 +2972,8 @@ onUnmounted(() => {
   </div>
 </template>
 
-/* ========================================== */
-/* === 9. STYLES & ANIMATIONS === */
-/* ========================================== */
+/* ========================================== */ /* === 9. STYLES & ANIMATIONS
+=== */ /* ========================================== */
 <style>
 /* Epicenter Pulsing Marker Style */
 .epicenter-marker-wrapper {
