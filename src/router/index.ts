@@ -19,12 +19,13 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
-  // Initialize from localStorage on first navigation
-  if (!auth.isAuthenticated) {
-    auth.init()
+  // Initialize from native Supabase session + local metadata on first navigation
+  // We need to await it to avoid redirection before session is restored
+  if (!(auth as any).initialized) {
+    await auth.init()
   }
 
   // Redirect to auth if not authenticated and route requires it
