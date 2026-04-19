@@ -9,7 +9,9 @@ import { getAvatarUrl } from "@/lib/user";
 const router = useRouter();
 const auth = useAuthStore();
 
-// --- State ---
+// ==========================================
+// === 1. STATE & REFS ===
+// ==========================================
 const mapContainer = ref<HTMLDivElement | null>(null);
 let map: L.Map | null = null;
 let epicenterMarker: L.Marker | null = null;
@@ -68,8 +70,83 @@ const editedProfile = ref({
 const successSheetActive = ref(false);
 const bookingError = ref<string | null>(null);
 const userCoords = ref<{ lat: number; lng: number } | null>(null);
+const showCancelConfirm = ref(false);
+const rideToCancel = ref<string | null>(null);
 const isAvatarPickerOpen = ref(false);
 const avatarOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+// PWA Installation
+const deferredPrompt = ref<any>(null);
+const showInstallBanner = ref(false);
+const isStandalone = ref(false);
+const isIOS = ref(false);
+const isAndroid = ref(false);
+const showIOSInstructions = ref(false);
+const showAndroidInstructions = ref(false);
+
+// Drag-to-close State
+const dragStartY = ref(0);
+const dragTranslateY = ref(0);
+const isDragging = ref(false);
+const activeDraggingSheet = ref<string | null>(null);
+
+function onSheetDragStart(e: TouchEvent, sheetId: string) {
+  dragStartY.value = e.touches[0].clientY;
+  activeDraggingSheet.value = sheetId;
+  isDragging.value = true;
+}
+
+function onSheetDragMove(e: TouchEvent) {
+  if (!isDragging.value) return;
+  const currentY = e.touches[0].clientY;
+  const deltaY = currentY - dragStartY.value;
+  
+  // We only allow dragging down for sheets (positive deltaY)
+  // EXCEPT for the explorer which can also be dragged up if minimized
+  if (activeDraggingSheet.value === 'explorer') {
+    dragTranslateY.value = deltaY;
+  } else if (deltaY > 0) {
+    dragTranslateY.value = deltaY;
+  }
+}
+
+function onSheetDragEnd() {
+  if (!isDragging.value) return;
+  
+  const threshold = 100;
+  
+  if (activeDraggingSheet.value === 'explorer') {
+    if (dragTranslateY.value > threshold && !isSheetMinimized.value) {
+      isSheetMinimized.value = true;
+    } else if (dragTranslateY.value < -threshold && isSheetMinimized.value) {
+      isSheetMinimized.value = false;
+    }
+  } else {
+    // Standard modal sheets
+    if (dragTranslateY.value > threshold) {
+      if (activeDraggingSheet.value === 'selectedRide') selectedRide.value = null;
+      if (activeDraggingSheet.value === 'profile') profileSheetActive.value = false;
+      if (activeDraggingSheet.value === 'success') successSheetActive.value = false;
+      if (activeDraggingSheet.value === 'picking') pickingSheetActive.value = false;
+    }
+  }
+
+  isDragging.value = false;
+  dragTranslateY.value = 0;
+  activeDraggingSheet.value = null;
+}
+
+function checkPWAStatus() {
+  const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  isIOS.value = isIOSDevice;
+  
+  const isAndroidDevice = /Android/i.test(navigator.userAgent);
+  isAndroid.value = isAndroidDevice;
+  
+  if (window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true) {
+    isStandalone.value = true;
+  }
+}
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; // km
@@ -130,7 +207,9 @@ watch(currentRole, (role) => {
   localStorage.setItem("vb_role", role);
 });
 
-// --- Computed ---
+// ==========================================
+// === 2. COMPUTED PROPERTIES ===
+// ==========================================
 const myRide = computed(() => {
   if (!auth.user) return null;
   return rides.value.find((r) => r.driver_id === auth.user?.id) || null;
@@ -147,17 +226,16 @@ const availableRides = computed(() => {
   const list = rides.value.filter((r) => {
     if (r.status !== "active") return false;
     if (auth.user && r.driver_id === auth.user.id) return false;
-    // Hide if already booked by the user as a passenger
-    if (
-      auth.user &&
-      r.bookings?.some((b: any) => b.passenger_id === auth.user?.id)
-    )
-      return false;
     return true;
   });
 
   if (userCoords.value) {
     return [...list].sort((a, b) => {
+      const aUserRide = isPassenger(a.id);
+      const bUserRide = isPassenger(b.id);
+      if (aUserRide && !bUserRide) return -1;
+      if (!aUserRide && bUserRide) return 1;
+
       const distA = getDistance(
         userCoords.value!.lat,
         userCoords.value!.lng,
@@ -173,7 +251,14 @@ const availableRides = computed(() => {
       return distA - distB;
     });
   }
-  return list;
+  
+  return [...list].sort((a, b) => {
+    const aUserRide = isPassenger(a.id);
+    const bUserRide = isPassenger(b.id);
+    if (aUserRide && !bUserRide) return -1;
+    if (!aUserRide && bUserRide) return 1;
+    return 0;
+  });
 });
 
 watch(
@@ -209,7 +294,9 @@ watch(
   { deep: true },
 );
 
-// --- Logic ---
+// ==========================================
+// === 3. CORE LOGIC & API ===
+// ==========================================
 async function fetchEventData() {
   isEventLoading.value = true;
   fetchError.value = null;
@@ -277,6 +364,9 @@ function handleLogout() {
   router.push({ name: "auth" });
 }
 
+// ==========================================
+// === 4. MAP & RIDES MANAGEMENT ===
+// ==========================================
 function initMap() {
   if (!mapContainer.value) return;
 
@@ -367,29 +457,33 @@ function updateMarkers() {
       return;
     }
 
-    if (markers.value.has(ride.id)) {
-      markers.value.get(ride.id)?.setLatLng([ride.origin_lat, ride.origin_lng]);
-    } else {
-      const carIcon = L.divIcon({
-        className: "car-marker-wrapper",
-        html: `
-          <div class="car-marker group">
-            <div class="car-bubble group-active:scale-90 transition-transform" style="${
-              isUserRide
-                ? "background: #4285F4; box-shadow: 0 8px 25px rgba(66, 133, 244, 0.4);"
-                : ""
-            }">
-              <span class="material-symbols-outlined text-white text-[18px]">directions_car</span>
-              <div class="seats-badge">${seatsLeft}</div>
+    const carIcon = L.divIcon({
+      className: "car-marker-wrapper",
+      html: `
+        <div class="car-marker group">
+          <div class="car-bubble group-active:scale-90 transition-transform bg-white" style="${
+            isUserRide
+              ? "border-color: #4285F4; box-shadow: 0 8px 25px rgba(66, 133, 244, 0.4);"
+              : "border-color: #006a45; box-shadow: 0 8px 25px rgba(0, 106, 69, 0.4);"
+          }">
+            <div class="w-full h-full rounded-full overflow-hidden">
+               <img src="${getAvatarUrl(ride.profiles?.avatar_url)}" class="w-full h-full object-cover" />
             </div>
-            <div class="car-label" style="${isUserRide ? "border-color: #4285F4/20; color: #4285F4;" : ""}">${ride.profiles?.first_name}</div>
-            <div class="car-pointer"></div>
+            <div class="seats-badge">${seatsLeft}</div>
           </div>
-        `,
-        iconSize: [50, 60],
-        iconAnchor: [25, 55],
-      });
+          <div class="car-label" style="${isUserRide ? "border-color: #4285F4/20; color: #4285F4;" : ""}">${ride.profiles?.first_name}</div>
+          <div class="car-pointer"></div>
+        </div>
+      `,
+      iconSize: [50, 60],
+      iconAnchor: [25, 55],
+    });
 
+    if (markers.value.has(ride.id)) {
+      const marker = markers.value.get(ride.id);
+      marker?.setLatLng([ride.origin_lat, ride.origin_lng]);
+      marker?.setIcon(carIcon);
+    } else {
       const marker = L.marker([ride.origin_lat, ride.origin_lng], {
         icon: carIcon,
       }).addTo(map!);
@@ -497,6 +591,9 @@ watch(selectedRide, (newRide) => {
   }
 });
 
+// ==========================================
+// === 5. USER ACTIONS & UI ===
+// ==========================================
 async function openProfile() {
   profileSheetActive.value = true;
   profileLoading.value = true;
@@ -740,13 +837,91 @@ async function bookSeat() {
     alert("Erreur lors de la réservation : " + error.message);
     bookingLoading.value = false;
   } else {
+    // Optimistic UI update
+    const rideIndex = rides.value.findIndex(r => r.id === selectedRide.value?.id);
+    if (rideIndex !== -1 && auth.user) {
+      if (!rides.value[rideIndex].bookings) rides.value[rideIndex].bookings = [];
+      rides.value[rideIndex].bookings.push({
+        id: "temp-" + Date.now(),
+        passenger_id: auth.user.id,
+        status: "confirmed"
+      });
+    }
+
     // Save info for success screen
     lastBookedRide.value = selectedRide.value;
     selectedRide.value = null;
     bookingLoading.value = false;
     successSheetActive.value = true;
-    await fetchRides();
+    fetchRides(); // Fetch asynchronously without awaiting so UI updates instantly
   }
+}
+
+function promptCancelBooking(rideId: string) {
+  rideToCancel.value = rideId;
+  showCancelConfirm.value = true;
+}
+
+async function confirmCancelBooking() {
+  if (!rideToCancel.value || !auth.user) return;
+
+  bookingLoading.value = true;
+  const { error } = await supabase
+    .from("bookings")
+    .delete()
+    .eq("ride_id", rideToCancel.value)
+    .eq("passenger_id", auth.user.id);
+
+  if (error) {
+    alert("Erreur lors de l'annulation : " + error.message);
+    bookingLoading.value = false;
+  } else {
+    // Optimistic UI update
+    const rideIndex = rides.value.findIndex(r => r.id === rideToCancel.value);
+    if (rideIndex !== -1 && auth.user) {
+      if (rides.value[rideIndex].bookings) {
+        rides.value[rideIndex].bookings = rides.value[rideIndex].bookings.filter(
+          (b: any) => b.passenger_id !== auth.user!.id
+        );
+      }
+    }
+
+    // This is a test comment from Antigravity
+    selectedRide.value = null;
+    showCancelConfirm.value = false;
+    rideToCancel.value = null;
+    bookingLoading.value = false;
+    fetchRides(); // Fetch asynchronously without awaiting so UI updates instantly
+  }
+}
+
+function closeCancelConfirm() {
+  showCancelConfirm.value = false;
+  rideToCancel.value = null;
+}
+
+async function installApp() {
+  if (deferredPrompt.value) {
+    deferredPrompt.value.prompt();
+    const { outcome } = await deferredPrompt.value.userChoice;
+    if (outcome === "accepted") {
+      showInstallBanner.value = false;
+      deferredPrompt.value = null;
+    }
+  } else if (isIOS.value) {
+    profileSheetActive.value = false;
+    showIOSInstructions.value = true;
+    showInstallBanner.value = false;
+  } else if (isAndroid.value) {
+    profileSheetActive.value = false;
+    showAndroidInstructions.value = true;
+    showInstallBanner.value = false;
+  }
+}
+
+function dismissInstallBanner() {
+  showInstallBanner.value = false;
+  localStorage.setItem("vb_install_dismissed", "true");
 }
 
 function locateMe() {
@@ -773,7 +948,9 @@ function recenter() {
   map.flyTo([eventData.value.center_lat, eventData.value.center_lng], 14);
 }
 
-// --- Realtime ---
+// ==========================================
+// === 6. REALTIME SUBSCRIPTIONS ===
+// ==========================================
 function setupRealtime() {
   realtimeChannel = supabase
     .channel("rides_updates")
@@ -801,7 +978,9 @@ function formatTime(iso: string) {
   });
 }
 
-// --- Lifecycle ---
+// ==========================================
+// === 7. VUE LIFECYCLE ===
+// ==========================================
 // Watch for rides changes to update markers
 watch(
   rides,
@@ -812,8 +991,26 @@ watch(
 );
 
 onMounted(async () => {
+  checkPWAStatus();
   window.addEventListener("online", updateOnlineStatus);
   window.addEventListener("offline", updateOnlineStatus);
+  
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt.value = e;
+    if (!isStandalone.value && !localStorage.getItem("vb_install_dismissed")) {
+      setTimeout(() => {
+        showInstallBanner.value = true;
+      }, 3000);
+    }
+  });
+
+  if (isIOS.value && !isStandalone.value && !localStorage.getItem("vb_install_dismissed")) {
+    setTimeout(() => {
+      showInstallBanner.value = true;
+    }, 4000);
+  }
+
   initMap();
   locateMe();
 
@@ -833,6 +1030,9 @@ onUnmounted(() => {
 });
 </script>
 
+<!-- ========================================== -->
+<!-- === 8. INTERFACE (TEMPLATE) === -->
+<!-- ========================================== -->
 <template>
   <div
     class="h-[100dvh] flex flex-col relative overflow-hidden bg-brand-surface font-body"
@@ -854,6 +1054,53 @@ onUnmounted(() => {
           >cloud_off</span
         >
         MODE HORS-LIGNE
+      </div>
+    </Transition>
+
+    <!-- PWA Install Banner -->
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="-translate-y-full opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showInstallBanner && !isStandalone"
+        class="fixed top-20 inset-x-4 z-[90] flex justify-center"
+      >
+        <div
+          class="bg-[#4285F4] text-white p-4 rounded-[24px] shadow-2xl flex flex-col gap-3 relative overflow-hidden group max-w-sm w-full"
+        >
+          <div class="flex items-start gap-3">
+            <div
+              class="size-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0"
+            >
+              <span class="material-symbols-outlined text-white">download</span>
+            </div>
+            <div>
+              <p class="text-sm font-black leading-tight mb-1">
+                Garde VendiCovoit sous la main !
+              </p>
+              <p class="text-[11px] font-bold text-white/80 leading-snug">
+                Installe l'app sur ton écran d'accueil pour un accès ultra-rapide et ne rater aucune place.
+              </p>
+            </div>
+            <button
+              @click="dismissInstallBanner"
+              class="absolute top-2 right-2 size-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+            >
+              <span class="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+          <button
+            @click="installApp"
+            class="w-full py-3 bg-white text-[#4285F4] font-black text-sm rounded-xl active:scale-95 transition-all shadow-lg"
+          >
+            Installer maintenant
+          </button>
+        </div>
       </div>
     </Transition>
 
@@ -1036,15 +1283,19 @@ onUnmounted(() => {
       <!-- Bottom Sheet -->
       <section
         class="bg-white/80 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 flex flex-col transition-all duration-500 overflow-hidden"
-        :class="[isSheetMinimized ? 'max-h-[40px]' : 'max-h-[75vh]']"
+        :class="[isSheetMinimized ? 'max-h-[40px]' : 'max-h-[75vh]', isDragging && activeDraggingSheet === 'explorer' ? 'transition-none' : '']"
+        :style="{ transform: isDragging && activeDraggingSheet === 'explorer' ? `translateY(${dragTranslateY}px)` : '' }"
       >
         <!-- Drag Handle / Grabber -->
         <div
           @click="isSheetMinimized = !isSheetMinimized"
-          class="w-full py-4 cursor-pointer active:bg-black/5 transition-colors"
+          @touchstart="onSheetDragStart($event, 'explorer')"
+          @touchmove="onSheetDragMove"
+          @touchend="onSheetDragEnd"
+          class="w-full py-4 cursor-pointer active:bg-black/5 transition-colors group"
         >
           <div
-            class="w-10 h-1.5 bg-brand-on-surface/10 rounded-full mx-auto"
+            class="w-10 h-1.5 bg-brand-on-surface/10 rounded-full mx-auto group-active:bg-brand-on-surface/20 transition-colors"
           ></div>
         </div>
 
@@ -1134,10 +1385,24 @@ onUnmounted(() => {
                     v-for="ride in availableRides"
                     :key="ride.id"
                     @click="selectedRide = ride"
-                    class="bg-white border border-brand-outline/30 p-5 rounded-[2.5rem] flex items-center gap-5 hover:shadow-xl hover:border-brand-primary/20 transition-all cursor-pointer group active:scale-[0.98]"
+                    :class="[
+                      'p-5 rounded-[2.5rem] flex items-center gap-5 hover:shadow-xl transition-all cursor-pointer group active:scale-[0.98]',
+                      isPassenger(ride.id)
+                        ? 'bg-white border-2 border-[#4285F4] shadow-md shadow-[#4285F4]/10'
+                        : 'bg-white border border-brand-outline/30 hover:border-brand-primary/20',
+                    ]"
                   >
                     <div class="relative flex-shrink-0">
                       <div
+                        v-if="isPassenger(ride.id)"
+                        class="w-16 h-16 rounded-[1.5rem] bg-[#4285F4] text-white flex items-center justify-center shadow-lg shadow-[#4285F4]/20"
+                      >
+                        <span class="material-symbols-outlined text-2xl"
+                          >directions_car</span
+                        >
+                      </div>
+                      <div
+                        v-else
                         class="w-16 h-16 rounded-full bg-brand-primary/5 flex items-center justify-center border border-brand-outline/20 overflow-hidden group-hover:border-brand-primary/30 transition-colors"
                       >
                         <img
@@ -1155,12 +1420,23 @@ onUnmounted(() => {
                     </div>
                     <div class="flex-1 min-w-0">
                       <div class="flex justify-between items-start mb-1">
-                        <span class="text-brand-on-surface font-black text-lg">
-                          {{ ride.profiles?.first_name }}
+                        <span
+                          :class="[
+                            'font-black text-lg',
+                            isPassenger(ride.id)
+                              ? 'text-[#4285F4]'
+                              : 'text-brand-on-surface',
+                          ]"
+                        >
+                          {{
+                            isPassenger(ride.id)
+                              ? formatTime(ride.departure_time)
+                              : ride.profiles?.first_name
+                          }}
                         </span>
                         <div class="flex items-center">
                           <span
-                            v-if="userCoords"
+                            v-if="!isPassenger(ride.id) && userCoords"
                             class="mr-3 text-[10px] font-black text-brand-primary bg-brand-primary/10 px-2.5 py-1 rounded-full border border-brand-primary/10 flex items-center"
                           >
                             <span
@@ -1177,14 +1453,26 @@ onUnmounted(() => {
                             }}
                             km
                           </span>
-                          <span class="text-brand-primary font-black text-lg">
+                          <span
+                            v-if="!isPassenger(ride.id)"
+                            class="text-brand-primary font-black text-lg"
+                          >
                             {{ formatTime(ride.departure_time) }}
                           </span>
+                          <span
+                            v-if="isPassenger(ride.id)"
+                            class="px-3 py-1 bg-[#4285F4]/5 text-[#4285F4] text-[10px] font-black uppercase tracking-widest rounded-full"
+                            >Ton covoit</span
+                          >
                         </div>
                       </div>
-                      <div class="flex items-center gap-2">
+                      <div
+                        class="flex items-center gap-2"
+                        :class="isPassenger(ride.id) && 'mb-3'"
+                      >
                         <span
                           class="text-sm font-bold text-brand-on-surface/60"
+                          v-if="!isPassenger(ride.id)"
                         >
                           {{ ride.total_seats - (ride.bookings?.length || 0) }}
                           place{{
@@ -1194,12 +1482,51 @@ onUnmounted(() => {
                           }}
                         </span>
                         <span
+                          v-if="!isPassenger(ride.id)"
                           class="w-1 h-1 bg-brand-on-surface/20 rounded-full"
                         ></span>
                         <span
-                          class="text-xs font-bold text-brand-primary/70 uppercase tracking-tighter"
+                          class="text-xs font-bold uppercase tracking-tighter"
+                          :class="
+                            isPassenger(ride.id)
+                              ? 'text-brand-on-surface/40'
+                              : 'text-brand-primary/70'
+                          "
                           >{{ ride.origin_name }}</span
                         >
+                      </div>
+                      <!-- Add occupancy status when passenger, just like driver side -->
+                      <div
+                        v-if="isPassenger(ride.id)"
+                        class="flex items-center gap-3 mt-1"
+                      >
+                        <div class="flex -space-x-2">
+                          <div
+                            v-for="i in Math.min(
+                              3,
+                              ride.bookings?.filter(
+                                (b: any) => b.status === 'confirmed',
+                              ).length || 0,
+                            )"
+                            :key="i"
+                            class="w-7 h-7 rounded-full bg-brand-outline/20 border-2 border-white flex items-center justify-center overflow-hidden"
+                          >
+                            <span
+                              class="material-symbols-outlined text-[14px] text-brand-on-surface/40"
+                              >person</span
+                            >
+                          </div>
+                        </div>
+                        <span
+                          class="text-sm font-bold text-brand-on-surface/60"
+                        >
+                          {{
+                            ride.bookings?.filter(
+                              (b: any) => b.status === "confirmed",
+                            ).length || 0
+                          }}
+                          / {{ ride.total_seats }} passagers
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1386,10 +1713,17 @@ onUnmounted(() => {
       <section
         v-if="pickingSheetActive"
         class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[60] flex flex-col transition-all duration-300"
+        :style="{ transform: isDragging && activeDraggingSheet === 'picking' ? `translateY(${dragTranslateY}px)` : '' }"
       >
+        <!-- Drag Handle -->
         <div
-          class="w-10 h-1.5 bg-brand-on-surface/10 rounded-full mx-auto mt-4 mb-2"
-        ></div>
+          class="w-full flex justify-center py-4 cursor-grab active:cursor-grabbing"
+          @touchstart="onSheetDragStart($event, 'picking')"
+          @touchmove="onSheetDragMove"
+          @touchend="onSheetDragEnd"
+        >
+          <div class="w-10 h-1.5 bg-brand-on-surface/10 rounded-full"></div>
+        </div>
         <div class="px-6 py-6 pb-12">
           <h2 class="text-2xl font-black mb-8">Derniers réglages</h2>
 
@@ -1483,7 +1817,20 @@ onUnmounted(() => {
       <section
         v-if="selectedRide && selectedRide.driver_id !== auth.user?.id"
         class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[60] flex flex-col transition-all duration-300"
+        :class="[isDragging && activeDraggingSheet === 'selectedRide' ? 'transition-none' : '']"
+        :style="{ transform: isDragging && activeDraggingSheet === 'selectedRide' ? `translateY(${dragTranslateY}px)` : '' }"
       >
+        <!-- Drag Handle -->
+        <div
+          @touchstart="onSheetDragStart($event, 'selectedRide')"
+          @touchmove="onSheetDragMove"
+          @touchend="onSheetDragEnd"
+          class="w-full py-4 cursor-pointer group"
+        >
+          <div
+            class="w-10 h-1 bg-brand-on-surface/10 rounded-full mx-auto group-active:bg-brand-on-surface/20 transition-colors"
+          ></div>
+        </div>
         <div class="px-6 py-6 pb-12">
           <div class="flex items-center gap-4 mb-8">
             <img
@@ -1623,13 +1970,14 @@ onUnmounted(() => {
             >
               Réserver ma place
             </button>
-            <div
+            <button
               v-else-if="isPassenger(selectedRide.id)"
-              class="flex-[3] py-4 bg-green-50 text-green-600 font-bold rounded-2xl flex items-center justify-center gap-2 border border-green-100"
+              @click="promptCancelBooking(selectedRide.id)"
+              class="flex-[3] py-4 bg-[#FFF0F0] text-[#FF4B4B] font-bold text-lg rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border border-[#FF4B4B]/10"
             >
-              <span class="material-symbols-outlined">check_circle</span>
-              Déjà réservé
-            </div>
+              <span class="material-symbols-outlined !text-[20px]">cancel</span>
+              Libérer ma place
+            </button>
           </div>
         </div>
       </section>
@@ -1774,11 +2122,25 @@ onUnmounted(() => {
 
             <!-- Save Changes Button if modified -->
             <button
-              v-if="JSON.stringify(editedProfile) !== JSON.stringify(auth.user)"
+              v-if="
+                JSON.stringify(editedProfile) !== JSON.stringify(auth.user)
+              "
               @click="updateProfile"
               class="w-full py-4 mb-4 bg-brand-primary text-white font-black text-lg rounded-[20px] shadow-xl shadow-brand-primary/20 active:scale-95 transition-all"
             >
               Enregistrer
+            </button>
+
+            <!-- PWA Install Button in Profile -->
+            <button
+              v-if="!isStandalone"
+              @click="installApp"
+              class="w-full py-4 mb-4 bg-brand-on-surface text-brand-surface font-black text-[15px] rounded-[24px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
+            >
+              <span class="material-symbols-outlined !text-[20px] font-bold"
+                >mobile_friendly</span
+              >
+              Installer l'application
             </button>
 
             <!-- Logout Button -->
@@ -1808,7 +2170,18 @@ onUnmounted(() => {
       <section
         v-if="successSheetActive"
         class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[70] flex flex-col transition-all duration-300 text-center"
+        :class="[isDragging && activeDraggingSheet === 'success' ? 'transition-none' : '']"
+        :style="{ transform: isDragging && activeDraggingSheet === 'success' ? `translateY(${dragTranslateY}px)` : '' }"
       >
+        <!-- Drag Handle -->
+        <div
+          class="w-full flex justify-center py-4 cursor-grab active:cursor-grabbing"
+          @touchstart="onSheetDragStart($event, 'success')"
+          @touchmove="onSheetDragMove"
+          @touchend="onSheetDragEnd"
+        >
+          <div class="w-10 h-1.5 bg-brand-on-surface/10 rounded-full"></div>
+        </div>
         <div class="px-6 py-12">
           <div
             class="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-6"
@@ -1944,9 +2317,234 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- Cancel Confirmation Modal -->
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-200"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showCancelConfirm"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        @click.self="closeCancelConfirm"
+      >
+        <div
+          class="bg-white rounded-3xl p-6 w-full max-w-[320px] shadow-2xl flex flex-col items-center text-center transform scale-100"
+        >
+          <div
+            class="h-16 w-16 bg-[#FFF0F0] text-[#FF4B4B] rounded-full flex items-center justify-center mb-4"
+          >
+            <span class="material-symbols-outlined !text-[32px]">warning</span>
+          </div>
+          <h3 class="font-black text-xl mb-2">Libérer ma place ?</h3>
+          <p class="text-brand-on-surface/60 font-medium mb-6">
+            Es-tu sûr de vouloir libérer ta place dans ce covoiturage ?
+          </p>
+          <div class="flex gap-3 w-full">
+            <button
+              @click="closeCancelConfirm"
+              class="flex-1 py-3.5 bg-gray-100 text-brand-on-surface font-bold rounded-2xl active:scale-95 transition-all"
+            >
+              Annuler
+            </button>
+            <button
+              @click="confirmCancelBooking"
+              class="flex-1 py-3.5 bg-[#FF4B4B] text-white font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+              :disabled="bookingLoading"
+            >
+              <span
+                v-if="bookingLoading"
+                class="material-symbols-outlined animate-spin"
+                >refresh</span
+              >
+              <span v-else>Confirmer</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- iOS Install Instructions Modal -->
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showIOSInstructions"
+        class="fixed inset-0 z-[300] bg-brand-on-surface/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+        @click.self="showIOSInstructions = false"
+      >
+        <div
+          class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl relative"
+        >
+          <button
+            @click="showIOSInstructions = false"
+            class="absolute top-6 right-6 size-10 flex items-center justify-center rounded-full bg-brand-on-surface/5 hover:bg-brand-on-surface/10 transition-colors"
+          >
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+
+          <div
+            class="size-20 bg-[#4285F4]/10 rounded-[2rem] flex items-center justify-center mb-6 mx-auto"
+          >
+            <svg
+              viewBox="0 0 384 512"
+              class="w-10 h-10 text-[#4285F4] fill-current"
+            >
+              <path
+                d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"
+              />
+            </svg>
+          </div>
+
+          <h2 class="text-2xl font-black text-center mb-2">Sur ton iPhone</h2>
+          <p class="text-center text-brand-on-surface/50 font-bold mb-8">
+            Installe VendiCovoit en 2 étapes rapides :
+          </p>
+
+          <div class="space-y-6 mb-10">
+            <div class="flex items-start gap-4">
+              <div
+                class="size-10 bg-brand-on-surface/5 rounded-full flex items-center justify-center shrink-0 font-black text-brand-primary"
+              >
+                1
+              </div>
+              <div class="pt-1.5">
+                <p class="text-sm font-black mb-1 flex items-center gap-2">
+                  Appuie sur <span class="material-symbols-outlined text-[18px]">ios_share</span> Partager
+                </p>
+                <p class="text-[12px] font-bold text-brand-on-surface/40 leading-snug">
+                  C'est le petit carré avec la flèche vers le haut dans ta barre Safari.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-4">
+              <div
+                class="size-10 bg-brand-on-surface/5 rounded-full flex items-center justify-center shrink-0 font-black text-brand-primary"
+              >
+                2
+              </div>
+              <div class="pt-1.5">
+                <p class="text-sm font-black mb-1 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-[18px]">add_box</span> Sur l'écran d'accueil
+                </p>
+                <p class="text-[12px] font-bold text-brand-on-surface/40 leading-snug">
+                  Fais défiler les options et clique sur le "+". Et paf, c'est installé !
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <button
+            @click="showIOSInstructions = false"
+            class="w-full py-4 bg-[#4285F4] text-white font-black text-lg rounded-2xl active:scale-95 transition-all shadow-xl shadow-[#4285F4]/20"
+          >
+            J'ai compris !
+          </button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Android Install Instructions Modal -->
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showAndroidInstructions"
+        class="fixed inset-0 z-[300] bg-brand-on-surface/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+        @click.self="showAndroidInstructions = false"
+      >
+        <div
+          class="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl relative"
+        >
+          <button
+            @click="showAndroidInstructions = false"
+            class="absolute top-6 right-6 size-10 flex items-center justify-center rounded-full bg-brand-on-surface/5 hover:bg-brand-on-surface/10 transition-colors"
+          >
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+
+          <div
+            class="size-20 bg-[#3DDC84]/10 rounded-[2rem] flex items-center justify-center mb-6 mx-auto"
+          >
+            <svg
+              viewBox="0 0 448 512"
+              class="w-12 h-12 text-[#3DDC84] fill-current"
+            >
+              <path
+                d="M448 183.8v160.4c0 14.8-12 26.8-26.8 26.8h-35.4v106.3c0 14.8-12 26.8-26.8 26.8h-63V371.1h-44v133.1h-63c-14.8 0-26.8-12-26.8-26.8v-106.3H98.6c-14.8 0-26.8-12-26.8-26.8v-160.4H448zm-113.8 68.6c-11.1 0-20.2-9-20.2-20.2s9.1-20.2 20.2-20.2 20.2 9 20.2 20.2-9.1 20.2-20.2 20.2zm-220.4 0c-11.1 0-20.2-9-20.2-20.2s9.1-20.2 20.2-20.2s20.2 9 20.2 20.2-9.1 20.2-20.2 20.2zM286 151H162c-8.8 0-16-7.2-16-16s7.2-16 16-16h124c8.8 0 16 7.2 16 16s-7.2 16-16 16zm-62-119C111.4 32 18.2 110.1 2.2 211.5 1.1 218.4 6.4 225 13.4 225h421.1c7 0 12.3-6.6 11.2-13.5C429.8 110.1 336.6 32 224 32z"
+              />
+            </svg>
+          </div>
+
+          <h2 class="text-2xl font-black text-center mb-2">Sur ton Android</h2>
+          <p class="text-center text-brand-on-surface/50 font-bold mb-8">
+            Installe VendiCovoit via le menu :
+          </p>
+
+          <div class="space-y-6 mb-10">
+            <div class="flex items-start gap-4">
+              <div
+                class="size-10 bg-brand-on-surface/5 rounded-full flex items-center justify-center shrink-0 font-black text-brand-primary"
+              >
+                1
+              </div>
+              <div class="pt-1.5">
+                <p class="text-sm font-black mb-1 flex items-center gap-2">
+                  Appuie sur <span class="material-symbols-outlined text-[18px]">more_vert</span> Menu
+                </p>
+                <p class="text-[12px] font-bold text-brand-on-surface/40 leading-snug">
+                  Les trois petits points en haut à droite (Chrome) ou en bas.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-4">
+              <div
+                class="size-10 bg-brand-on-surface/5 rounded-full flex items-center justify-center shrink-0 font-black text-brand-primary"
+              >
+                2
+              </div>
+              <div class="pt-1.5">
+                <p class="text-sm font-black mb-1 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-[18px]">add_to_home_screen</span> Installer l'app
+                </p>
+                <p class="text-[12px] font-bold text-brand-on-surface/40 leading-snug">
+                  Cherche "Installer l'application" ou "Ajouter à l'écran d'accueil".
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <button
+            @click="showAndroidInstructions = false"
+            class="w-full py-4 bg-[#3DDC84] text-white font-black text-lg rounded-2xl active:scale-95 transition-all shadow-xl shadow-[#3DDC84]/20"
+          >
+            C'est parti !
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
+/* ========================================== */
+/* === 9. STYLES & ANIMATIONS === */
+/* ========================================== */
 <style>
 /* Epicenter Pulsing Marker Style */
 .epicenter-marker-wrapper {
@@ -1999,10 +2597,9 @@ onUnmounted(() => {
 .car-bubble {
   width: 44px;
   height: 44px;
-  background: #006a45;
-  border-radius: 20px;
-  border: 3px solid white;
-  box-shadow: 0 8px 25px rgba(0, 106, 69, 0.4);
+  background: white;
+  border-radius: 50%;
+  border: 3px solid #006a45;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2014,6 +2611,7 @@ onUnmounted(() => {
   position: absolute;
   top: -6px;
   right: -6px;
+  z-index: 10;
   background: #ff385c;
   color: white;
   font-size: 10px;

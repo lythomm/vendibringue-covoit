@@ -23,6 +23,21 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Restore session from localStorage on init
   function init() {
+    // Listen to token refreshes from Supabase so our local vb_auth doesn't get a stale refresh_token
+    supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (newSession && user.value && event.value) {
+        session.value = {
+          access_token: newSession.access_token,
+          refresh_token: newSession.refresh_token,
+        }
+        localStorage.setItem('vb_auth', JSON.stringify({
+          user: user.value,
+          event: event.value,
+          session: session.value,
+        }))
+      }
+    })
+
     const stored = localStorage.getItem('vb_auth')
     if (stored) {
       try {
@@ -31,11 +46,15 @@ export const useAuthStore = defineStore('auth', () => {
         event.value = parsed.event
         session.value = parsed.session
 
-        // Set the session on the Supabase client so RLS works
         if (parsed.session) {
-          supabase.auth.setSession({
-            access_token: parsed.session.access_token,
-            refresh_token: parsed.session.refresh_token,
+          // Only sync to Supabase if it doesn't already have an active session
+          supabase.auth.getSession().then(({ data }) => {
+            if (!data.session) {
+              supabase.auth.setSession({
+                access_token: parsed.session.access_token,
+                refresh_token: parsed.session.refresh_token,
+              })
+            }
           })
         }
       } catch {
@@ -68,6 +87,23 @@ export const useAuthStore = defineStore('auth', () => {
       throw new Error(data.error || 'Erreur de connexion')
     }
 
+    // Set the session on the Supabase client
+    await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    })
+
+    // Fetch the latest profile from DB, as auth-gate might omit avatar_url
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single()
+
+    if (profile) {
+      data.user = { ...data.user, ...profile }
+    }
+
     // Store in state
     user.value = data.user
     event.value = data.event
@@ -79,12 +115,6 @@ export const useAuthStore = defineStore('auth', () => {
       event: data.event,
       session: data.session,
     }))
-
-    // Set the session on the Supabase client
-    await supabase.auth.setSession({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-    })
 
     // Assign random avatar if missing
     if (!data.user.avatar_url) {
