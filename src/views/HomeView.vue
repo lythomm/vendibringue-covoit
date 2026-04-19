@@ -762,7 +762,7 @@ function getWhatsAppLink(phone: string) {
 
 function startPicking() {
   if (myRide.value) {
-    showBookingError("Tu as déjà un trajet en cours !");
+    showBookingError("Tu as déjà un covoit en cours !");
     return;
   }
   if (myBookedRides.value.length > 0) {
@@ -829,7 +829,7 @@ async function submitRide() {
   if (!pickedCoords.value || !eventData.value) return;
 
   if (myRide.value && !isEditing.value) {
-    showBookingError("Tu as déjà un trajet en cours !");
+    showBookingError("Tu as déjà un covoit en cours !");
     return;
   }
 
@@ -965,12 +965,14 @@ async function confirmBooking(rideId: string) {
 
   // Restored constraints: No multiple bookings or hosting + booking
   if (myRide.value) {
-    showBookingError("Tu as déjà un trajet en cours !");
+    showBookingError("Tu as déjà un covoit en cours !");
     return;
   }
-  
+
   if (myBookedRides.value.length > 0) {
-    showBookingError("Tu as déjà une réservation en cours ! Libère ta place avant d'en réserver une autre.");
+    showBookingError(
+      "Tu as déjà une réservation en cours ! Libère ta place avant d'en réserver une autre.",
+    );
     return;
   }
 
@@ -1443,10 +1445,10 @@ onUnmounted(() => {
     >
       <div class="relative">
         <div class="w-12 h-12 flex items-center justify-center -translate-y-6">
-          <div class="w-0.5 h-12 bg-brand-primary absolute"></div>
-          <div class="w-12 h-0.5 bg-brand-primary absolute"></div>
+          <div class="w-0.5 h-12 bg-[#4285F4] absolute"></div>
+          <div class="w-12 h-0.5 bg-[#4285F4] absolute"></div>
           <div
-            class="w-4 h-4 rounded-full border-4 border-brand-primary absolute bg-white shadow-xl"
+            class="w-4 h-4 rounded-full border-4 border-[#4285F4] absolute bg-white shadow-xl"
           ></div>
         </div>
       </div>
@@ -1474,10 +1476,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Map Tools -->
-    <div
-      v-if="!isPickingLocation"
-      class="fixed top-24 right-5 flex flex-col gap-3 z-10"
-    >
+    <div class="fixed top-24 right-5 flex flex-col gap-3 z-10">
       <button
         @click="recenter"
         class="w-11 h-11 bg-brand-primary text-white border border-brand-primary/20 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all"
@@ -1782,8 +1781,8 @@ onUnmounted(() => {
             <!-- Mon trajet proposé -->
             <div v-if="myRide" class="space-y-6">
               <div
-                @click="selectedRide = myRide"
-                class="bg-white border-2 border-[#4285F4]/10 p-5 rounded-[2.5rem] flex items-center gap-5 hover:border-[#4285F4]/30 transition-all cursor-pointer relative overflow-hidden group active:scale-[0.98]"
+                @click="editRide(myRide)"
+                class="bg-white border-2 border-[#4285F4]/10 p-5 rounded-[2.5rem] flex items-center gap-5 hover:border-[#4285F4]/30 transition-all cursor-pointer relative group active:scale-[0.98]"
               >
                 <!-- Visual Icon for Own Ride -->
                 <div class="relative flex-shrink-0">
@@ -1837,6 +1836,14 @@ onUnmounted(() => {
                     </span>
                   </div>
                 </div>
+                <button
+                  @click.stop="deleteRide(myRide.id)"
+                  class="absolute -bottom-2 -right-1 py-2 size-10 bg-[#FFF0F0] text-[#FF4B4B] rounded-full active:scale-95 transition-all border border-[#FF4B4B]/10 flex items-center justify-center"
+                >
+                  <span class="material-symbols-outlined !text-[18px]"
+                    >delete</span
+                  >
+                </button>
               </div>
 
               <!-- Integrated Management Section -->
@@ -1854,14 +1861,6 @@ onUnmounted(() => {
                     v-if="!myRide.bookings || myRide.bookings.length === 0"
                     class="py-8 bg-brand-on-surface/[0.02] rounded-3xl border border-dashed border-brand-outline/10 text-center"
                   >
-                    <div
-                      class="w-10 h-10 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm"
-                    >
-                      <span
-                        class="material-symbols-outlined text-brand-on-surface/20"
-                        >person_add</span
-                      >
-                    </div>
                     <p
                       class="text-brand-on-surface/40 font-bold text-xs italic"
                     >
@@ -1918,27 +1917,6 @@ onUnmounted(() => {
                       </button>
                     </div>
                   </div>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex gap-3 pt-2">
-                  <button
-                    @click="editRide(myRide)"
-                    class="flex-[2] py-4 bg-brand-on-surface text-white font-black text-sm rounded-2xl active:scale-95 transition-all shadow-lg shadow-brand-on-surface/10 flex items-center justify-center gap-2"
-                  >
-                    <span class="material-symbols-outlined !text-[18px]"
-                      >edit</span
-                    >
-                    Modifier
-                  </button>
-                  <button
-                    @click="deleteRide(myRide.id)"
-                    class="flex-1 py-4 bg-[#FFF0F0] text-[#FF4B4B] font-black text-sm rounded-2xl active:scale-95 transition-all border border-[#FF4B4B]/10 flex items-center justify-center gap-2"
-                  >
-                    <span class="material-symbols-outlined !text-[18px]"
-                      >delete</span
-                    >
-                  </button>
                 </div>
               </div>
             </div>

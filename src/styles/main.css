@@ -1,17 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-primary: #006A45;
+  --color-brand-primary: #006a45;
   --color-brand-secondary: #056c47;
-  --color-brand-surface: #F5F2EA;
+  --color-brand-surface: #f5f2ea;
   --color-brand-on-surface: #1b1c1c;
   --color-brand-outline: #bec9c0;
-  
+
   --font-display: "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
 }
 
-html, body {
+html,
+body {
   overscroll-behavior: none;
   overflow: hidden;
   height: 100dvh;
