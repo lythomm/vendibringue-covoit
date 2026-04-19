@@ -5,6 +5,7 @@ import { useAuthStore } from "@/stores/auth";
 import { supabase } from "@/lib/supabase";
 import L from "leaflet";
 import { getAvatarUrl } from "@/lib/user";
+import confetti from "canvas-confetti";
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -16,7 +17,7 @@ const mapContainer = ref<HTMLDivElement | null>(null);
 let map: L.Map | null = null;
 let epicenterMarker: L.Marker | null = null;
 let userMarker: L.Marker | L.CircleMarker | null = null;
-let routePolyline: L.Polyline | null = null;
+let routeLayer: L.LayerGroup | null = null;
 let realtimeChannel: any = null;
 
 const isOffline = ref(!navigator.onLine);
@@ -285,12 +286,34 @@ watch(
   { deep: true },
 );
 
+function getBookedCount(ride: any) {
+  if (!ride) return 0;
+  return (
+    ride.bookings?.filter((b: any) => b.status === "confirmed").length || 0
+  );
+}
+
+function getSeatsLeft(ride: any) {
+  if (!ride) return 0;
+  return ride.total_seats - getBookedCount(ride);
+}
+
+// Reactivity sync: update selectedRide whenever the main rides array changes
+watch(
+  rides,
+  (newRides) => {
+    if (selectedRide.value) {
+      const freshData = newRides.find((r) => r.id === selectedRide.value.id);
+      if (freshData) {
+        selectedRide.value = freshData;
+      }
+    }
+  },
+  { deep: true },
+);
+
 const totalAvailableSeats = computed(() =>
-  availableRides.value.reduce((sum, r) => {
-    const bookedCount =
-      r.bookings?.filter((b: any) => b.status === "confirmed").length || 0;
-    return sum + (r.total_seats - bookedCount);
-  }, 0),
+  availableRides.value.reduce((sum, r) => sum + getSeatsLeft(r), 0),
 );
 
 const hasPreExistingActivity = computed(() => {
@@ -407,6 +430,9 @@ function initMap() {
     closeAllPanels();
   });
 
+  // Initialize layer group for routes
+  routeLayer = L.layerGroup().addTo(map);
+
   // Premium minimalist tile layer (CartoDB Light)
   L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
@@ -467,7 +493,7 @@ function updateMarkers() {
   // 2. Add or update markers for current rides
   allVisibleRides.forEach((ride) => {
     const isUserRide = ride.driver_id === auth.user?.id || isPassenger(ride.id);
-    const seatsLeft = ride.total_seats - (ride.bookings?.length || 0);
+    const seatsLeft = getSeatsLeft(ride);
 
     if (seatsLeft <= 0 && !isUserRide) {
       // If no seats, remove marker if exists
@@ -510,8 +536,11 @@ function updateMarkers() {
       }).addTo(map!);
 
       marker.on("click", () => {
-        selectedRide.value = ride;
-        if (ride.driver_id === auth.user?.id) {
+        // Fix for Story 4.1.2: Get latest data from the master list instead of closed-over stale object
+        const latestRide = rides.value.find((r) => r.id === ride.id) || ride;
+        selectedRide.value = latestRide;
+
+        if (latestRide.driver_id === auth.user?.id) {
           currentTab.value = "driver";
           isSheetMinimized.value = false;
         } else {
@@ -535,12 +564,13 @@ watch(
 );
 
 async function updateRouteLine(ride: any) {
-  if (!map || !eventData.value) return;
+  if (!map || !eventData.value || !routeLayer) return;
 
-  // Clear existing line
-  if (routePolyline) {
-    routePolyline.remove();
-  }
+  // Track if THIS specific call is still relevant
+  const currentRideId = ride.id;
+
+  // Clear existing line immediately and synchronously
+  routeLayer.clearLayers();
 
   const startLat = ride.origin_lat;
   const startLng = ride.origin_lng;
@@ -558,22 +588,41 @@ async function updateRouteLine(ride: any) {
     const data = await response.json();
 
     if (data.routes && data.routes.length > 0) {
+      // Race condition fix: check if we still want THIS ride's route
+      if (!selectedRide.value || selectedRide.value.id !== currentRideId) {
+        console.log("Aborting route draw: ride changed or cleared");
+        return;
+      }
+
       const coordinates = data.routes[0].geometry.coordinates.map(
         (c: [number, number]) => [c[1], c[0]],
       );
-      routePolyline = L.polyline(coordinates, {
+
+      const polyline = L.polyline(coordinates, {
         color: routeColor,
         weight: 6,
         opacity: 0.8,
         lineJoin: "round",
-      }).addTo(map);
+      }).addTo(routeLayer);
+
+      // Zoom to fit the route
+      map.fitBounds(polyline.getBounds(), {
+        paddingTopLeft: [40, 80],
+        paddingBottomRight: [40, Math.min(window.innerHeight * 0.6, 500)],
+        animate: true,
+        duration: 1.5,
+      });
     } else {
       throw new Error("No route found");
     }
   } catch (err) {
     console.warn("OSRM routing failed, falling back to straight line:", err);
+
+    // Race condition check before fallback draw too
+    if (!selectedRide.value || selectedRide.value.id !== currentRideId) return;
+
     // Fallback to straight line
-    routePolyline = L.polyline(
+    const fallbackPolyline = L.polyline(
       [
         [startLat, startLng],
         [endLat, endLng],
@@ -584,14 +633,11 @@ async function updateRouteLine(ride: any) {
         opacity: 0.6,
         dashArray: "10, 10",
       },
-    ).addTo(map);
-  }
+    ).addTo(routeLayer);
 
-  // Zoom to fit the route in the upper part of the screen
-  if (routePolyline) {
-    map.fitBounds(routePolyline.getBounds(), {
-      paddingTopLeft: [40, 80], // Padding top/left
-      paddingBottomRight: [40, Math.min(window.innerHeight * 0.6, 500)], // Large bottom padding to push route up
+    map.fitBounds(fallbackPolyline.getBounds(), {
+      paddingTopLeft: [40, 80],
+      paddingBottomRight: [40, Math.min(window.innerHeight * 0.6, 500)],
       animate: true,
       duration: 1.5,
     });
@@ -605,10 +651,9 @@ watch(selectedRide, (newRide) => {
     }
     updateRouteLine(newRide);
   } else {
-    // Clear line when closed
-    if (routePolyline) {
-      routePolyline.remove();
-      routePolyline = null;
+    // Clear route layer when closed
+    if (routeLayer) {
+      routeLayer.clearLayers();
     }
     // We no longer automatically re-zoom to center when closing to respect user navigation
   }
@@ -796,7 +841,7 @@ async function submitRide() {
   }
 
   // Create an ISO string for today + selected time (handling local timezone)
-  const [hours, minutes] = newRide.value.departure_time.split(':').map(Number);
+  const [hours, minutes] = newRide.value.departure_time.split(":").map(Number);
   const departureDate = new Date();
   departureDate.setHours(hours, minutes, 0, 0);
   const departureStr = departureDate.toISOString();
@@ -918,70 +963,106 @@ function isPassenger(rideId: string) {
 async function confirmBooking(rideId: string) {
   if (!rideId || !auth.user) return;
 
-  if (hasPreExistingActivity.value) {
-    showBookingError("Tu as déjà une réservation ou un covoit en cours !");
+  // Restored constraints: No multiple bookings or hosting + booking
+  if (myRide.value) {
+    showBookingError("Tu as déjà un trajet en cours !");
+    return;
+  }
+  
+  if (myBookedRides.value.length > 0) {
+    showBookingError("Tu as déjà une réservation en cours ! Libère ta place avant d'en réserver une autre.");
     return;
   }
 
-  bookingLoading.value = true;
-  const { error } = await supabase.from("bookings").insert({
-    ride_id: rideId,
-    passenger_id: auth.user.id,
-  });
+  try {
+    bookingLoading.value = true;
 
-  if (error) {
-    alert("Erreur lors de la réservation : " + error.message);
-    bookingLoading.value = false;
-  } else {
-    // Save info for success screen
-    lastBookedRide.value = rides.value.find((r: any) => r.id === rideId);
-    selectedRide.value = null;
-    bookingLoading.value = false;
-    successSheetActive.value = true;
-    await fetchRides();
-  }
-}
-
-async function bookSeat() {
-  if (!selectedRide.value || !auth.user) return;
-
-  if (hasPreExistingActivity.value) {
-    showBookingError("Tu as déjà une réservation ou un covoit en cours !");
-    return;
-  }
-
-  bookingLoading.value = true;
-  const { error } = await supabase.from("bookings").insert({
-    ride_id: selectedRide.value.id,
-    passenger_id: auth.user.id,
-  });
-
-  if (error) {
-    alert("Erreur lors de la réservation : " + error.message);
-    bookingLoading.value = false;
-  } else {
-    // Optimistic UI update
-    const rideIndex = rides.value.findIndex(
-      (r) => r.id === selectedRide.value?.id,
-    );
+    // 1. Optimistic Update in master list
+    const rideIndex = rides.value.findIndex((r) => r.id === rideId);
     if (rideIndex !== -1 && auth.user) {
-      if (!rides.value[rideIndex].bookings)
-        rides.value[rideIndex].bookings = [];
-      rides.value[rideIndex].bookings.push({
+      const ride = rides.value[rideIndex];
+      const newBooking = {
         id: "temp-" + Date.now(),
         passenger_id: auth.user.id,
         status: "confirmed",
-      });
+        profiles: {
+          id: auth.user.id,
+          first_name: auth.user.first_name || "Moi",
+          avatar_url: auth.user.avatar_url,
+          phone: auth.user.phone,
+          instagram_id: auth.user.instagram_id,
+        },
+      };
+      const updatedBookings = [...(ride.bookings || []), newBooking];
+      rides.value[rideIndex] = { ...ride, bookings: updatedBookings };
+      rides.value = [...rides.value]; // Triggers the sync watcher
     }
 
+    // 2. Supabase Call
+    const { data, error } = await supabase
+      .from("bookings")
+      .insert({
+        ride_id: rideId,
+        passenger_id: auth.user.id,
+      })
+      .select(
+        `
+        id, 
+        passenger_id, 
+        status,
+        profiles:passenger_id ( id, first_name, avatar_url, phone, instagram_id )
+      `,
+      )
+      .single();
+
+    if (error) throw error;
+
+    // 3. Replace temp with real data (already handled by fetchRides, but let's be thorough for sync)
+    // Actually our watcher will keep selectedRide in sync as soon as rides updates.
+
     // Save info for success screen
-    lastBookedRide.value = selectedRide.value;
-    selectedRide.value = null;
-    bookingLoading.value = false;
+    lastBookedRide.value = rides.value.find((r: any) => r.id === rideId);
     successSheetActive.value = true;
-    fetchRides(); // Fetch asynchronously without awaiting so UI updates instantly
+
+    // DELICIOUS CONFETTI
+    const duration = 1 * 1000;
+    const end = Date.now() + duration;
+
+    const frame = () => {
+      confetti({
+        particleCount: 2,
+        angle: 60,
+        spread: 75,
+        origin: { x: 0, y: 0.8 },
+        colors: ["#FF4B4B", "#FFD700", "#00B894", "#FFFFFF"],
+      });
+      confetti({
+        particleCount: 2,
+        angle: 120,
+        spread: 75,
+        origin: { x: 1, y: 0.8 },
+        colors: ["#FF4B4B", "#FFD700", "#00B894", "#FFFFFF"],
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    };
+    frame();
+
+    // Trigger refreshing in background
+    setTimeout(() => fetchRides(), 800);
+  } catch (err: any) {
+    console.error("Booking failed:", err);
+    alert("Erreur lors de la réservation : " + err.message);
+    await fetchRides(); // Rollback to real data
+  } finally {
+    bookingLoading.value = false;
   }
 }
+
+// Unused - consolidate into confirmBooking
+// async function bookSeat() { ... }
 
 function promptCancelBooking(rideId: string) {
   rideToCancel.value = rideId;
@@ -991,33 +1072,40 @@ function promptCancelBooking(rideId: string) {
 async function confirmCancelBooking() {
   if (!rideToCancel.value || !auth.user) return;
 
-  bookingLoading.value = true;
-  const { error } = await supabase
-    .from("bookings")
-    .delete()
-    .eq("ride_id", rideToCancel.value)
-    .eq("passenger_id", auth.user.id);
+  try {
+    bookingLoading.value = true;
+    const rideId = rideToCancel.value;
 
-  if (error) {
-    alert("Erreur lors de l'annulation : " + error.message);
-    bookingLoading.value = false;
-  } else {
+    const { error } = await supabase
+      .from("bookings")
+      .delete()
+      .eq("ride_id", rideId)
+      .eq("passenger_id", auth.user.id);
+
+    if (error) throw error;
+
     // Optimistic UI update
-    const rideIndex = rides.value.findIndex((r) => r.id === rideToCancel.value);
+    const rideIndex = rides.value.findIndex((r) => r.id === rideId);
     if (rideIndex !== -1 && auth.user) {
-      if (rides.value[rideIndex].bookings) {
-        rides.value[rideIndex].bookings = rides.value[
-          rideIndex
-        ].bookings.filter((b: any) => b.passenger_id !== auth.user!.id);
-      }
+      const ride = rides.value[rideIndex];
+      const updatedBookings = (ride.bookings || []).filter(
+        (b: any) => b.passenger_id !== auth.user!.id,
+      );
+      rides.value[rideIndex] = { ...ride, bookings: updatedBookings };
+      rides.value = [...rides.value]; // Triggers sync watcher
     }
 
-    // This is a test comment from Antigravity
-    selectedRide.value = null;
     showCancelConfirm.value = false;
     rideToCancel.value = null;
+
+    // Refresh to stay in sync with server truth
+    setTimeout(() => fetchRides(), 500);
+  } catch (err: any) {
+    console.error("Cancellation failed:", err);
+    alert("Erreur lors de l'annulation : " + err.message);
+    await fetchRides();
+  } finally {
     bookingLoading.value = false;
-    fetchRides(); // Fetch asynchronously without awaiting so UI updates instantly
   }
 }
 
@@ -1615,12 +1703,8 @@ onUnmounted(() => {
                           class="text-sm font-bold text-brand-on-surface/60"
                           v-if="!isPassenger(ride.id)"
                         >
-                          {{ ride.total_seats - (ride.bookings?.length || 0) }}
-                          place{{
-                            ride.total_seats - (ride.bookings?.length || 0) > 1
-                              ? "s"
-                              : ""
-                          }}
+                          {{ getSeatsLeft(ride) }}
+                          place{{ getSeatsLeft(ride) > 1 ? "s" : "" }}
                         </span>
                         <span
                           v-if="!isPassenger(ride.id)"
@@ -1643,12 +1727,7 @@ onUnmounted(() => {
                       >
                         <div class="flex -space-x-2">
                           <div
-                            v-for="i in Math.min(
-                              3,
-                              ride.bookings?.filter(
-                                (b: any) => b.status === 'confirmed',
-                              ).length || 0,
-                            )"
+                            v-for="i in Math.min(3, getBookedCount(ride))"
                             :key="i"
                             class="w-7 h-7 rounded-full bg-brand-outline/20 border-2 border-white flex items-center justify-center overflow-hidden"
                           >
@@ -1661,12 +1740,8 @@ onUnmounted(() => {
                         <span
                           class="text-sm font-bold text-brand-on-surface/60"
                         >
-                          {{
-                            ride.bookings?.filter(
-                              (b: any) => b.status === "confirmed",
-                            ).length || 0
-                          }}
-                          / {{ ride.total_seats }} passagers
+                          {{ getBookedCount(ride) }} /
+                          {{ ride.total_seats }} passagers
                         </span>
                       </div>
                     </div>
@@ -1742,12 +1817,7 @@ onUnmounted(() => {
                   <div class="flex items-center gap-3">
                     <div class="flex -space-x-2">
                       <div
-                        v-for="i in Math.min(
-                          3,
-                          myRide.bookings?.filter(
-                            (b: any) => b.status === 'confirmed',
-                          ).length || 0,
-                        )"
+                        v-for="i in Math.min(3, getBookedCount(myRide))"
                         :key="i"
                         class="w-7 h-7 rounded-full bg-brand-outline/20 border-2 border-white flex items-center justify-center overflow-hidden"
                       >
@@ -1776,7 +1846,7 @@ onUnmounted(() => {
                   <label
                     class="block text-[10px] font-black uppercase tracking-widest text-brand-on-surface/30 mb-4 px-1"
                   >
-                    Passagers ({{ myRide.bookings?.length || 0 }} /
+                    Passagers ({{ getBookedCount(myRide) }} /
                     {{ myRide.total_seats }})
                   </label>
 
@@ -1792,7 +1862,9 @@ onUnmounted(() => {
                         >person_add</span
                       >
                     </div>
-                    <p class="text-brand-on-surface/40 font-bold text-xs italic">
+                    <p
+                      class="text-brand-on-surface/40 font-bold text-xs italic"
+                    >
                       Aucune réservation pour le moment
                     </p>
                   </div>
@@ -1825,7 +1897,10 @@ onUnmounted(() => {
                             {{ booking.profiles?.phone }}
                           </p>
                         </a>
-                        <div v-else class="flex items-center gap-1.5 opacity-40">
+                        <div
+                          v-else
+                          class="flex items-center gap-1.5 opacity-40"
+                        >
                           <span class="material-symbols-outlined !text-[12px]"
                             >block</span
                           >
@@ -2151,19 +2226,13 @@ onUnmounted(() => {
               </div>
             </div>
             <div class="ml-auto text-right">
-              <span class="text-3xl font-black text-brand-primary">{{
-                selectedRide.total_seats - (selectedRide.bookings?.length || 0)
-              }}</span>
+              <span class="text-3xl font-black text-brand-primary">
+                {{ getSeatsLeft(selectedRide) }}
+              </span>
               <p
                 class="text-[10px] font-black uppercase text-brand-on-surface/40"
               >
-                Place{{
-                  selectedRide.total_seats -
-                    (selectedRide.bookings?.length || 0) >
-                  1
-                    ? "s"
-                    : ""
-                }}
+                Place{{ getSeatsLeft(selectedRide) > 1 ? "s" : "" }}
               </p>
             </div>
           </div>
@@ -2187,14 +2256,12 @@ onUnmounted(() => {
             <label
               class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-4"
             >
-              Passagers ({{ selectedRide.bookings?.length || 0 }} /
+              Passagers ({{ getBookedCount(selectedRide) }} /
               {{ selectedRide.total_seats }})
             </label>
 
             <div
-              v-if="
-                !selectedRide.bookings || selectedRide.bookings.length === 0
-              "
+              v-if="getBookedCount(selectedRide) === 0"
               class="py-6 bg-brand-on-surface/[0.02] rounded-2xl border border-dashed border-brand-outline/20 text-center"
             >
               <p class="text-brand-on-surface/40 font-bold text-xs italic">
@@ -2236,7 +2303,9 @@ onUnmounted(() => {
                     :href="'sms:' + booking.profiles.phone"
                     class="w-8 h-8 bg-white border border-brand-outline/5 rounded-xl flex items-center justify-center text-brand-on-surface shadow-sm active:scale-90 transition-all"
                   >
-                    <span class="material-symbols-outlined !text-[18px]">sms</span>
+                    <span class="material-symbols-outlined !text-[18px]"
+                      >sms</span
+                    >
                   </a>
                   <a
                     v-if="booking.profiles?.instagram_id"
@@ -2271,17 +2340,33 @@ onUnmounted(() => {
                 !isPassenger(selectedRide.id)
               "
               @click="confirmBooking(selectedRide.id)"
-              class="flex-[3] py-4 bg-brand-primary text-white font-black text-lg rounded-2xl shadow-2xl shadow-brand-primary/30 active:scale-95 transition-all"
+              :disabled="bookingLoading"
+              class="flex-[3] py-4 bg-brand-primary text-white font-black text-lg rounded-2xl shadow-2xl shadow-brand-primary/30 active:scale-95 transition-all flex items-center justify-center gap-3"
             >
-              Réserver ma place
+              <span
+                v-if="bookingLoading"
+                class="material-symbols-outlined animate-spin"
+                >refresh</span
+              >
+              <span v-else>Réserver ma place</span>
             </button>
             <button
               v-else-if="isPassenger(selectedRide.id)"
               @click="promptCancelBooking(selectedRide.id)"
+              :disabled="bookingLoading"
               class="flex-[3] py-4 bg-[#FFF0F0] text-[#FF4B4B] font-bold text-lg rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border border-[#FF4B4B]/10"
             >
-              <span class="material-symbols-outlined !text-[20px]">cancel</span>
-              Libérer ma place
+              <span
+                v-if="bookingLoading"
+                class="material-symbols-outlined animate-spin"
+                >refresh</span
+              >
+              <template v-else>
+                <span class="material-symbols-outlined !text-[20px]"
+                  >cancel</span
+                >
+                Libérer ma place
+              </template>
             </button>
           </div>
         </div>
@@ -2630,7 +2715,6 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
-
 
     <!-- Cancel Confirmation Modal -->
     <Transition
