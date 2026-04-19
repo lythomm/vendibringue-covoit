@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { supabase } from "@/lib/supabase";
 import L from "leaflet";
+import { getAvatarUrl } from "@/lib/user";
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -67,6 +68,8 @@ const editedProfile = ref({
 const successSheetActive = ref(false);
 const bookingError = ref<string | null>(null);
 const userCoords = ref<{ lat: number; lng: number } | null>(null);
+const isAvatarPickerOpen = ref(false);
+const avatarOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; // km
@@ -550,6 +553,37 @@ async function updateProfile() {
   }
 }
 
+async function changeAvatar(index: number) {
+  if (!auth.user?.id) return;
+  const indexStr = String(index);
+
+  try {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ avatar_url: indexStr })
+      .eq("id", auth.user.id);
+
+    if (error) throw error;
+
+    // Update local store
+    if (auth.user) {
+      auth.user.avatar_url = indexStr;
+
+      // Update localStorage
+      const stored = localStorage.getItem("vb_auth");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        parsed.user.avatar_url = indexStr;
+        localStorage.setItem("vb_auth", JSON.stringify(parsed));
+      }
+    }
+
+    isAvatarPickerOpen.value = false;
+  } catch (err: any) {
+    alert("Erreur lors du changement d'avatar : " + err.message);
+  }
+}
+
 function getWhatsAppLink(phone: string) {
   // Remove spaces and +
   const clean = phone.replace(/[^0-9]/g, "");
@@ -856,37 +890,22 @@ onUnmounted(() => {
           class="flex items-center gap-3 cursor-pointer active:scale-95 transition-all group"
           title="Copier les coordonnées"
         >
-          <div
-            class="w-9 h-9 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 group-hover:shadow-brand-primary/40 transition-all"
-          >
-            <svg
-              class="w-5 h-5 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z"
-              />
-            </svg>
-          </div>
           <h1
             class="text-xl font-extrabold tracking-tight text-brand-primary font-display"
           >
-            VendiBringue
+            VendiCovoit
           </h1>
         </div>
 
         <button
           @click="openProfile"
-          class="w-10 h-10 rounded-full bg-brand-on-surface/[0.03] border border-brand-outline/10 flex items-center justify-center overflow-hidden hover:bg-brand-on-surface/[0.06] transition-colors"
+          class="size-10 rounded-full bg-brand-on-surface/[0.03] border border-brand-outline/10 flex items-center justify-center overflow-hidden hover:bg-brand-on-surface/[0.06] transition-colors"
         >
-          <div class="text-sm font-bold text-brand-primary">
-            {{ auth.user?.first_name?.charAt(0).toUpperCase() }}
-          </div>
+          <img
+            :src="getAvatarUrl(auth.user?.avatar_url)"
+            class="relative z-10 bg-brand-surface"
+            alt="Profile Avatar"
+          />
         </button>
       </div>
     </header>
@@ -1121,7 +1140,15 @@ onUnmounted(() => {
                       <div
                         class="w-16 h-16 rounded-full bg-brand-primary/5 flex items-center justify-center border border-brand-outline/20 overflow-hidden group-hover:border-brand-primary/30 transition-colors"
                       >
-                        <span class="text-xl font-black text-brand-primary">
+                        <img
+                          v-if="ride.profiles?.avatar_url"
+                          :src="getAvatarUrl(ride.profiles.avatar_url)"
+                          class="w-full h-full object-cover"
+                        />
+                        <span
+                          v-else
+                          class="text-xl font-black text-brand-primary"
+                        >
                           {{ ride.profiles?.first_name?.charAt(0) }}
                         </span>
                       </div>
@@ -1460,12 +1487,9 @@ onUnmounted(() => {
         <div class="px-6 py-6 pb-12">
           <div class="flex items-center gap-4 mb-8">
             <img
-              :src="
-                selectedRide.profiles?.avatar_url ||
-                'https://api.dicebear.com/7.x/avataaars/svg?seed=' +
-                  selectedRide.profiles?.id
-              "
-              class="w-16 h-16 rounded-full border-2 border-brand-primary"
+              :src="getAvatarUrl(selectedRide.profiles?.avatar_url)"
+              class="w-16 h-16 rounded-full border-2 border-brand-primary bg-brand-surface"
+              alt="Driver Avatar"
             />
             <div>
               <h2 class="text-2xl font-black">
@@ -1642,93 +1666,131 @@ onUnmounted(() => {
           v-if="profileSheetActive"
           class="absolute top-0 right-0 h-full w-[85%] max-w-[360px] bg-white shadow-[-10px_0_40px_rgba(0,0,0,0.1)] border-l border-brand-outline/20 z-[75] flex flex-col pointer-events-auto"
         >
-          <div class="px-6 py-8 flex flex-col h-full">
-            <div class="flex justify-between items-center mb-8">
-              <h2 class="text-2xl font-black">Mon Profil</h2>
-              <button
-                @click="profileSheetActive = false"
-                class="w-10 h-10 rounded-full bg-brand-on-surface/[0.05] flex items-center justify-center active:scale-90 transition-transform"
-              >
-                <span class="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <div
-              v-if="profileLoading"
-              class="flex-1 flex items-center justify-center"
+          <!-- Header -->
+          <div class="px-6 py-6 flex items-center justify-between">
+            <h2 class="text-xl font-black text-brand-on-surface">Mon Profil</h2>
+            <button
+              @click="profileSheetActive = false"
+              class="w-10 h-10 rounded-full bg-brand-on-surface/[0.05] flex items-center justify-center active:scale-95 transition-all text-brand-on-surface/60"
             >
-              <div
-                class="w-10 h-10 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"
-              ></div>
-            </div>
+              <span class="material-symbols-outlined !text-[20px]">close</span>
+            </button>
+          </div>
 
-            <div v-else class="flex-1 flex flex-col">
-              <div class="space-y-8 flex-1 overflow-y-auto pr-1 scrollbar-hide">
-                <!-- First Name -->
-                <div>
-                  <label
-                    class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-3 ml-1"
-                    >Ton Prénom</label
-                  >
-                  <input
-                    v-model="editedProfile.first_name"
-                    type="text"
-                    class="w-full p-4 bg-brand-on-surface/[0.03] border border-brand-outline/10 rounded-2xl font-bold outline-none focus:border-brand-primary/30 transition-all text-brand-on-surface"
+          <div
+            v-if="profileLoading"
+            class="flex-1 flex items-center justify-center"
+          >
+            <div
+              class="w-10 h-10 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"
+            ></div>
+          </div>
+
+          <div v-else class="flex-1 overflow-y-auto px-6 pb-24 scrollbar-hide">
+            <!-- Avatar Section -->
+            <div class="flex flex-col items-center mt-4 mb-10">
+              <div class="relative group">
+                <div
+                  class="absolute -inset-1 bg-brand-primary/20 rounded-full blur-md group-hover:bg-brand-primary/30 transition-all"
+                ></div>
+                <div
+                  class="relative cursor-pointer"
+                  @click="isAvatarPickerOpen = true"
+                >
+                  <img
+                    :src="getAvatarUrl(auth.user?.avatar_url)"
+                    class="size-24 rounded-full border-4 border-white shadow-xl relative z-10 bg-brand-surface"
+                    alt="Profile Avatar"
                   />
-                </div>
-
-                <!-- Phone -->
-                <div>
-                  <label
-                    class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-3 ml-1"
-                    >WhatsApp / Tél</label
+                  <!-- Edit Icon overlay -->
+                  <div
+                    class="absolute bottom-1 right-1 size-8 bg-brand-primary text-white rounded-full border-4 border-white shadow-lg flex items-center justify-center z-20 active:scale-90 transition-all"
                   >
-                  <input
-                    v-model="editedProfile.phone"
-                    type="tel"
-                    class="w-full p-4 bg-brand-on-surface/[0.03] border border-brand-outline/10 rounded-2xl font-bold outline-none focus:border-brand-primary/30 transition-all text-brand-on-surface"
-                  />
-                </div>
-
-                <!-- Instagram -->
-                <div>
-                  <label
-                    class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-3 ml-1"
-                    >Instagram</label
-                  >
-                  <div class="relative">
-                    <span
-                      class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-brand-on-surface/30"
-                      >@</span
+                    <span class="material-symbols-outlined !text-[20px]"
+                      >edit</span
                     >
-                    <input
-                      v-model="editedProfile.instagram_id"
-                      type="text"
-                      class="w-full p-4 pl-8 bg-brand-on-surface/[0.03] border border-brand-outline/10 rounded-2xl font-bold outline-none focus:border-brand-primary/30 transition-all text-brand-on-surface"
-                    />
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div class="pt-6 border-t border-brand-outline/5 space-y-4">
-                <button
-                  @click="updateProfile"
-                  class="w-full py-4 bg-brand-primary text-white font-black text-lg rounded-2xl shadow-xl shadow-brand-primary/20 active:scale-95 transition-all"
+            <!-- Informations Section -->
+            <div class="space-y-3 mb-10">
+              <!-- Prénom -->
+              <div>
+                <label
+                  class="block text-[11px] font-black tracking-[0.15em] text-brand-on-surface/40 mb-3 ml-1 uppercase"
                 >
-                  Enregistrer
-                </button>
+                  Ton Prénom
+                </label>
+                <div
+                  class="bg-brand-on-surface/[0.03] rounded-[22px] border border-brand-outline/10 p-1"
+                >
+                  <input
+                    v-model="editedProfile.first_name"
+                    class="w-full px-5 py-4 bg-transparent font-black text-brand-on-surface outline-none text-[16px] border-none"
+                  />
+                </div>
+              </div>
 
-                <button
-                  @click="handleLogout"
-                  class="w-full py-3 text-red-500 font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-50 rounded-xl transition-colors"
+              <!-- Tél -->
+              <div>
+                <label
+                  class="block text-[11px] font-black tracking-[0.15em] text-brand-on-surface/40 mb-3 ml-1 uppercase"
                 >
-                  <span class="material-symbols-outlined text-[18px]"
-                    >logout</span
+                  WhatsApp / Tél
+                </label>
+                <div
+                  class="bg-brand-on-surface/[0.03] rounded-[22px] border border-brand-outline/10 p-1"
+                >
+                  <input
+                    v-model="editedProfile.phone"
+                    class="w-full px-5 py-4 bg-transparent font-black text-brand-on-surface outline-none text-[16px] border-none"
+                  />
+                </div>
+              </div>
+
+              <!-- Instagram -->
+              <div>
+                <label
+                  class="block text-[11px] font-black tracking-[0.15em] text-brand-on-surface/40 mb-3 ml-1 uppercase"
+                >
+                  Instagram
+                </label>
+                <div
+                  class="bg-brand-on-surface/[0.03] rounded-[22px] border border-brand-outline/10 p-1 flex items-center"
+                >
+                  <span
+                    class="pl-5 pr-0.5 font-bold text-brand-on-surface/30 text-[16px]"
+                    >@</span
                   >
-                  Se déconnecter
-                </button>
+                  <input
+                    v-model="editedProfile.instagram_id"
+                    class="w-full pr-5 py-4 bg-transparent font-black text-brand-on-surface outline-none text-[16px] border-none"
+                  />
+                </div>
               </div>
             </div>
+
+            <!-- Save Changes Button if modified -->
+            <button
+              v-if="JSON.stringify(editedProfile) !== JSON.stringify(auth.user)"
+              @click="updateProfile"
+              class="w-full py-4 mb-4 bg-brand-primary text-white font-black text-lg rounded-[20px] shadow-xl shadow-brand-primary/20 active:scale-95 transition-all"
+            >
+              Enregistrer
+            </button>
+
+            <!-- Logout Button -->
+            <button
+              @click="handleLogout"
+              class="w-full py-5 bg-[#FFF0F0] text-[#FF4B4B] font-black text-[15px] rounded-[24px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
+            >
+              <span class="material-symbols-outlined !text-[20px] font-bold"
+                >logout</span
+              >
+              Déconnexion
+            </button>
           </div>
         </section>
       </Transition>
@@ -1816,6 +1878,71 @@ onUnmounted(() => {
           </button>
         </div>
       </section>
+    </Transition>
+
+    <!-- Avatar Picker Modal -->
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="opacity-0 scale-95"
+      enter-to-class="opacity-100 scale-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="opacity-100 scale-100"
+      leave-to-class="opacity-0 scale-95"
+    >
+      <div
+        v-if="isAvatarPickerOpen"
+        class="fixed inset-0 z-[100] flex items-center justify-center px-6"
+      >
+        <div
+          class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          @click="isAvatarPickerOpen = false"
+        ></div>
+        <div
+          class="bg-white rounded-[2.5rem] w-full max-w-sm relative z-10 overflow-hidden shadow-2xl"
+        >
+          <div class="p-8">
+            <div class="flex justify-between items-center mb-8">
+              <h3 class="text-xl font-black">Choisis ton avatar</h3>
+              <button
+                @click="isAvatarPickerOpen = false"
+                class="w-8 h-8 rounded-full bg-brand-on-surface/5 flex items-center justify-center"
+              >
+                <span class="material-symbols-outlined !text-[18px]"
+                  >close</span
+                >
+              </button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+              <button
+                v-for="index in avatarOptions"
+                :key="index"
+                @click="changeAvatar(index)"
+                class="relative aspect-square rounded-full overflow-hidden border-2 transition-all active:scale-95"
+                :class="
+                  String(index) === auth.user?.avatar_url
+                    ? 'border-brand-primary bg-brand-primary/5'
+                    : 'border-brand-outline/10 hover:border-brand-primary/30'
+                "
+              >
+                <img
+                  :src="getAvatarUrl(index)"
+                  class="w-full h-full object-cover"
+                />
+                <div
+                  v-if="String(index) === auth.user?.avatar_url"
+                  class="absolute top-1 right-1 w-5 h-5 bg-brand-primary rounded-full flex items-center justify-center shadow-md"
+                >
+                  <span
+                    class="material-symbols-outlined !text-[12px] text-white font-bold"
+                    >check</span
+                  >
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </Transition>
   </div>
 </template>

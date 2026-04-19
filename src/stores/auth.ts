@@ -7,6 +7,7 @@ interface UserProfile {
   first_name: string
   phone: string
   instagram_id?: string
+  avatar_url?: string
 }
 
 interface EventInfo {
@@ -84,6 +85,27 @@ export const useAuthStore = defineStore('auth', () => {
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
     })
+
+    // Assign random avatar if missing
+    if (!data.user.avatar_url) {
+      const randomIndex = Math.floor(Math.random() * 9) + 1;
+      const { data: updatedUser } = await supabase
+        .from('profiles')
+        .update({ avatar_url: String(randomIndex) })
+        .eq('id', data.user.id)
+        .select()
+        .single();
+      
+      if (updatedUser) {
+        user.value = updatedUser;
+        // Update localStorage with the new user data
+        localStorage.setItem('vb_auth', JSON.stringify({
+          user: updatedUser,
+          event: data.event,
+          session: data.session,
+        }))
+      }
+    }
 
     return data
   }
