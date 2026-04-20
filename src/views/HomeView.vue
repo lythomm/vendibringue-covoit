@@ -2304,7 +2304,7 @@ onUnmounted(() => {
     >
       <section
         v-if="selectedRide && selectedRide.driver_id !== auth.user?.id"
-        class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[60] flex flex-col transition-all duration-300 max-h-[55dvh]"
+        class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[60] flex flex-col transition-all duration-300 max-h-[60dvh]"
         :style="{
           transform:
             isDragging && activeDraggingSheet === 'selectedRide'
@@ -2323,8 +2323,8 @@ onUnmounted(() => {
         </div>
 
         <!-- PASSENGER VIEW -->
-        <div class="px-6 pb-6 overflow-y-auto">
-          <div class="flex items-center gap-4 mb-8">
+        <div class="px-6 pb-4 flex-1 min-h-0 overflow-y-auto">
+          <div class="flex items-center gap-4 mb-8 mt-4">
             <img
               :src="getAvatarUrl(selectedRide.profiles?.avatar_url)"
               class="w-16 h-16 rounded-full border-2 border-brand-primary bg-brand-on-surface/[0.05] object-cover"
@@ -2350,11 +2350,13 @@ onUnmounted(() => {
                     )
                   }}
                 </p>
-                <div class="flex items-center justify-center overflow-x-auto">
+                <div
+                  class="flex items-center justify-start overflow-x-auto gap-2"
+                >
                   <a
                     v-if="selectedRide.profiles?.phone"
                     :href="'sms:' + selectedRide.profiles.phone"
-                    class="size-10 flex items-center justify-center active:scale-95 transition-all"
+                    class="h-10 w-8 flex items-center justify-center active:scale-95 transition-all text-brand-primary"
                     title="Envoyer un SMS"
                   >
                     <span class="material-symbols-outlined">sms</span>
@@ -2514,11 +2516,16 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
+        </div>
 
+        <!-- Fixed CTA Footer -->
+        <div
+          class="p-6 border-t border-brand-outline/5 bg-white relative z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]"
+        >
           <div class="flex gap-4">
             <button
               @click="selectedRide = null"
-              class="flex-1 py-4 font-bold text-brand-on-surface/40"
+              class="flex-1 py-4 font-bold text-brand-on-surface/40 hover:text-brand-on-surface transition-colors"
             >
               Fermer
             </button>
