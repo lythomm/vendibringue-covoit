@@ -2643,7 +2643,7 @@ onUnmounted(() => {
         class="fixed inset-0 z-[100] flex items-center justify-center px-6"
       >
         <div
-          class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          class="absolute inset-0 bg-black/60 scale-105 transition-none"
           @click="isAvatarPickerOpen = false"
         ></div>
         <div
@@ -2667,7 +2667,7 @@ onUnmounted(() => {
                 v-for="index in avatarOptions"
                 :key="index"
                 @click="changeAvatar(index)"
-                class="relative aspect-square rounded-full overflow-hidden border-2 transition-all active:scale-95"
+                class="relative aspect-square rounded-full transition-all active:scale-95"
                 :class="
                   String(index) === auth.user?.avatar_url
                     ? 'border-brand-primary bg-brand-primary/5'
@@ -2680,7 +2680,7 @@ onUnmounted(() => {
                 />
                 <div
                   v-if="String(index) === auth.user?.avatar_url"
-                  class="absolute top-1 right-1 w-5 h-5 bg-brand-primary rounded-full flex items-center justify-center shadow-md"
+                  class="absolute top-0 right-0 size-6 bg-brand-primary rounded-full flex items-center justify-center shadow-md"
                 >
                   <span
                     class="material-symbols-outlined !text-[12px] text-white font-bold"
