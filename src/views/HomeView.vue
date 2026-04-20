@@ -466,7 +466,7 @@ function initMap() {
         </svg>
       </div>
       <div class="epicenter-label">
-        Vendibringue
+        Vendibringue 2026
       </div>
     `,
     iconSize: [40, 40],
@@ -527,15 +527,15 @@ function updateMarkers() {
         <div class="car-marker group">
           <div class="car-bubble group-active:scale-90 transition-transform bg-white" style="${
             isUserRide
-              ? "border-color: #4285F4; box-shadow: 0 8px 25px rgba(66, 133, 244, 0.4);"
-              : "border-color: #006a45; box-shadow: 0 8px 25px rgba(0, 106, 69, 0.4);"
+              ? "border-color: var(--color-brand-accent); box-shadow: 0 8px 25px color-mix(in srgb, var(--color-brand-accent) 40%, transparent);"
+              : "border-color: var(--color-brand-primary); box-shadow: 0 8px 25px color-mix(in srgb, var(--color-brand-primary) 40%, transparent);"
           }">
             <div class="w-full h-full rounded-full overflow-hidden">
                <img src="${getAvatarUrl(ride.profiles?.avatar_url)}" class="w-full h-full object-cover" />
             </div>
             <div class="seats-badge">${seatsLeft}</div>
           </div>
-          <div class="car-label" style="${isUserRide ? "border-color: #4285F4/20; color: #4285F4;" : ""}">${ride.profiles?.first_name}</div>
+          <div class="car-label" style="${isUserRide ? "border-color: color-mix(in srgb, var(--color-brand-accent) 20%, transparent); color: var(--color-brand-accent);" : ""}">${ride.profiles?.first_name}</div>
           <div class="car-pointer"></div>
         </div>
       `,
@@ -591,7 +591,7 @@ async function updateRouteLine(ride: any) {
   const endLng = eventData.value.center_lng;
 
   const isUserRide = ride.driver_id === auth.user?.id || isPassenger(ride.id);
-  const routeColor = isUserRide ? "#4285F4" : "#006A45";
+  const routeColor = isUserRide ? "#4285f4" : "#006a45"; // Keep hex for Leaflet polyline color as it prefers literal strings, but use token values
 
   // Optimization: If we already have this ride's route, just update style
   const existingLayers = routeLayer.getLayers();
@@ -1070,14 +1070,14 @@ async function confirmBooking(rideId: string) {
         angle: 60,
         spread: 75,
         origin: { x: 0, y: 0.8 },
-        colors: ["#FF4B4B", "#FFD700", "#00B894", "#FFFFFF"],
+        colors: ["#ff4b4b", "#ff9f43", "#feca57"], // Red, Orange, Yellow
       });
       confetti({
         particleCount: 2,
         angle: 120,
         spread: 75,
         origin: { x: 1, y: 0.8 },
-        colors: ["#FF4B4B", "#FFD700", "#00B894", "#FFFFFF"],
+        colors: ["#ff4b4b", "#ff9f43", "#feca57"],
       });
 
       if (Date.now() < end) {
@@ -2171,7 +2171,8 @@ onUnmounted(() => {
           <div class="flex items-center gap-4 mb-8">
             <img
               :src="getAvatarUrl(selectedRide.profiles?.avatar_url)"
-              class="w-16 h-16 rounded-full border-2 border-brand-primary bg-brand-surface"
+              class="w-16 h-16 rounded-full border-2 border-brand-primary bg-brand-on-surface/[0.05] object-cover"
+              @error="(e) => (e.target as HTMLImageElement).src = getAvatarUrl('1')"
               alt="Driver Avatar"
             />
             <div>
@@ -2284,7 +2285,8 @@ onUnmounted(() => {
               >
                 <img
                   :src="getAvatarUrl(booking.profiles?.avatar_url)"
-                  class="w-8 h-8 rounded-full bg-white shadow-sm"
+                   class="w-8 h-8 rounded-full bg-brand-on-surface/[0.05] shadow-sm object-cover"
+                  @error="(e) => (e.target as HTMLImageElement).src = getAvatarUrl('1')"
                 />
                 <div class="flex-1">
                   <p class="font-black text-sm text-brand-on-surface">
@@ -2361,7 +2363,7 @@ onUnmounted(() => {
               v-else-if="isPassenger(selectedRide.id)"
               @click="promptCancelBooking(selectedRide.id)"
               :disabled="bookingLoading"
-              class="flex-[3] py-4 bg-[#FFF0F0] text-[#FF4B4B] font-bold text-lg rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border border-[#FF4B4B]/10"
+              class="flex-[3] py-4 bg-red-50 text-brand-error font-bold text-lg rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border border-brand-error/10"
             >
               <span
                 v-if="bookingLoading"
@@ -2444,7 +2446,8 @@ onUnmounted(() => {
                 >
                   <img
                     :src="getAvatarUrl(auth.user?.avatar_url)"
-                    class="size-24 rounded-full border-4 border-white shadow-xl relative z-10 bg-brand-surface"
+                    class="size-24 rounded-full border-4 border-white shadow-xl relative z-10 bg-brand-on-surface/[0.05] object-cover"
+                    @error="(e) => (e.target as HTMLImageElement).src = getAvatarUrl('1')"
                     alt="Profile Avatar"
                   />
                   <!-- Edit Icon overlay -->
@@ -2955,7 +2958,7 @@ onUnmounted(() => {
 
           <button
             @click="showIOSInstructions = false"
-            class="w-full py-4 bg-[#4285F4] text-white font-black text-lg rounded-2xl active:scale-95 transition-all shadow-xl shadow-[#4285F4]/20"
+            class="w-full py-4 bg-brand-accent text-white font-black text-lg rounded-2xl active:scale-95 transition-all shadow-xl shadow-brand-accent/20"
           >
             J'ai compris !
           </button>
@@ -2988,11 +2991,11 @@ onUnmounted(() => {
           </button>
 
           <div
-            class="size-20 bg-[#3DDC84]/10 rounded-[2rem] flex items-center justify-center mb-6 mx-auto"
+            class="size-20 bg-brand-android/10 rounded-[2rem] flex items-center justify-center mb-6 mx-auto"
           >
             <svg
               viewBox="0 0 448 512"
-              class="w-12 h-12 text-[#3DDC84] fill-current"
+              class="w-12 h-12 text-brand-android fill-current"
             >
               <path
                 d="M448 183.8v160.4c0 14.8-12 26.8-26.8 26.8h-35.4v106.3c0 14.8-12 26.8-26.8 26.8h-63V371.1h-44v133.1h-63c-14.8 0-26.8-12-26.8-26.8v-106.3H98.6c-14.8 0-26.8-12-26.8-26.8v-160.4H448zm-113.8 68.6c-11.1 0-20.2-9-20.2-20.2s9.1-20.2 20.2-20.2 20.2 9 20.2 20.2-9.1 20.2-20.2 20.2zm-220.4 0c-11.1 0-20.2-9-20.2-20.2s9.1-20.2 20.2-20.2s20.2 9 20.2 20.2-9.1 20.2-20.2 20.2zM286 151H162c-8.8 0-16-7.2-16-16s7.2-16 16-16h124c8.8 0 16 7.2 16 16s-7.2 16-16 16zm-62-119C111.4 32 18.2 110.1 2.2 211.5 1.1 218.4 6.4 225 13.4 225h421.1c7 0 12.3-6.6 11.2-13.5C429.8 110.1 336.6 32 224 32z"
@@ -3053,7 +3056,7 @@ onUnmounted(() => {
 
           <button
             @click="showAndroidInstructions = false"
-            class="w-full py-4 bg-[#3DDC84] text-white font-black text-lg rounded-2xl active:scale-95 transition-all shadow-xl shadow-[#3DDC84]/20"
+            class="w-full py-4 bg-brand-android text-white font-black text-lg rounded-2xl active:scale-95 transition-all shadow-xl shadow-brand-android/20"
           >
             C'est parti !
           </button>
@@ -3080,10 +3083,10 @@ onUnmounted(() => {
   position: absolute;
   width: 24px;
   height: 24px;
-  background: #006a45;
+  background: var(--color-brand-primary);
   border-radius: 50%;
   border: 4px solid white;
-  box-shadow: 0 4px 15px rgba(0, 106, 69, 0.4);
+  box-shadow: 0 4px 15px color-mix(in srgb, var(--color-brand-primary) 40%, transparent);
   z-index: 2;
   display: flex;
   align-items: center;
@@ -3094,7 +3097,7 @@ onUnmounted(() => {
   position: absolute;
   width: 60px;
   height: 60px;
-  background: rgba(0, 106, 69, 0.2);
+  background: color-mix(in srgb, var(--color-brand-primary) 20%, transparent);
   border-radius: 50%;
   animation: epicenter-heartbeat 2s ease-out infinite;
   z-index: 1;
@@ -3111,8 +3114,8 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 800;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(0, 106, 69, 0.1);
-  color: #006a45;
+  border: 1px solid color-mix(in srgb, var(--color-brand-primary) 10%, transparent);
+  color: var(--color-brand-primary);
   white-space: nowrap;
   pointer-events: none;
   z-index: 5;
@@ -3137,7 +3140,7 @@ onUnmounted(() => {
   height: 44px;
   background: white;
   border-radius: 50%;
-  border: 3px solid #006a45;
+  border: 3px solid var(--color-brand-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3150,7 +3153,7 @@ onUnmounted(() => {
   top: -6px;
   right: -6px;
   z-index: 10;
-  background: #ff385c;
+  background: var(--color-brand-error);
   color: white;
   font-size: 10px;
   font-weight: 900;
@@ -3198,7 +3201,7 @@ onUnmounted(() => {
 
 /* Hide Leaflet default components for cleaner look */
 .leaflet-container {
-  background: #fcf9f8 !important;
+  background: var(--color-brand-map-bg) !important;
 }
 
 /* Route Line */

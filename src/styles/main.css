@@ -7,6 +7,11 @@
   --color-brand-on-surface: #1b1c1c;
   --color-brand-outline: #bec9c0;
 
+  --color-brand-accent: #4285f4;
+  --color-brand-error: #ff385c;
+  --color-brand-android: #3ddc84;
+  --color-brand-map-bg: #fcf9f8;
+
   --font-display: "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
 }
