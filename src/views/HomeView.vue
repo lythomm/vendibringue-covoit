@@ -37,7 +37,7 @@ const eventData = ref<{
   address: string | null;
 }>({
   id: "ec06065d-6e1c-4775-b843-1e9c2195142f",
-  name: "Vendibringue 2026",
+  name: "Vendibringue",
   center_lat: 43.51871479457044,
   center_lng: 1.8295761830409003,
   address: "Vendibringue, France",
@@ -395,6 +395,14 @@ async function fetchRides() {
   loadingRides.value = false;
 }
 
+let fetchRidesTimeout: any = null;
+function fetchRidesDebounced() {
+  if (fetchRidesTimeout) clearTimeout(fetchRidesTimeout);
+  fetchRidesTimeout = setTimeout(() => {
+    fetchRides();
+  }, 200);
+}
+
 function closeAllPanels() {
   selectedRide.value = null;
   profileSheetActive.value = false;
@@ -450,6 +458,9 @@ function initMap() {
         <svg viewBox="0 0 24 24" fill="currentColor" class="w-2.5 h-2.5 text-white">
           <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001z" />
         </svg>
+      </div>
+      <div class="epicenter-label">
+        ${eventData.value?.name || "Vendibringue 2026"}
       </div>
     `,
     iconSize: [40, 40],
@@ -568,10 +579,6 @@ async function updateRouteLine(ride: any) {
 
   // Track if THIS specific call is still relevant
   const currentRideId = ride.id;
-
-  // Clear existing line immediately and synchronously
-  routeLayer.clearLayers();
-
   const startLat = ride.origin_lat;
   const startLng = ride.origin_lng;
   const endLat = eventData.value.center_lat;
@@ -579,6 +586,26 @@ async function updateRouteLine(ride: any) {
 
   const isUserRide = ride.driver_id === auth.user?.id || isPassenger(ride.id);
   const routeColor = isUserRide ? "#4285F4" : "#006A45";
+
+  // Optimization: If we already have this ride's route, just update style
+  const existingLayers = routeLayer.getLayers();
+  const existingPolyline = existingLayers.find(
+    (l) => l instanceof L.Polyline && (l as any).rideId === currentRideId,
+  ) as L.Polyline | undefined;
+
+  if (existingPolyline) {
+    const p = existingPolyline.getLatLngs() as L.LatLng[];
+    const firstPoint = Array.isArray(p[0]) ? (p[0][0] as L.LatLng) : p[0];
+
+    if (
+      firstPoint &&
+      Math.abs(firstPoint.lat - startLat) < 0.0001 &&
+      Math.abs(firstPoint.lng - startLng) < 0.0001
+    ) {
+      existingPolyline.setStyle({ color: routeColor });
+      return;
+    }
+  }
 
   try {
     // Try OSRM for real route
@@ -590,7 +617,6 @@ async function updateRouteLine(ride: any) {
     if (data.routes && data.routes.length > 0) {
       // Race condition fix: check if we still want THIS ride's route
       if (!selectedRide.value || selectedRide.value.id !== currentRideId) {
-        console.log("Aborting route draw: ride changed or cleared");
         return;
       }
 
@@ -598,12 +624,17 @@ async function updateRouteLine(ride: any) {
         (c: [number, number]) => [c[1], c[0]],
       );
 
+      // Successfully got new route: clear and add
+      routeLayer.clearLayers();
       const polyline = L.polyline(coordinates, {
         color: routeColor,
         weight: 6,
         opacity: 0.8,
         lineJoin: "round",
       }).addTo(routeLayer);
+
+      // Tag for future color-only updates
+      (polyline as any).rideId = currentRideId;
 
       // Zoom to fit the route
       map.fitBounds(polyline.getBounds(), {
@@ -616,12 +647,10 @@ async function updateRouteLine(ride: any) {
       throw new Error("No route found");
     }
   } catch (err) {
-    console.warn("OSRM routing failed, falling back to straight line:", err);
-
-    // Race condition check before fallback draw too
     if (!selectedRide.value || selectedRide.value.id !== currentRideId) return;
 
     // Fallback to straight line
+    routeLayer.clearLayers();
     const fallbackPolyline = L.polyline(
       [
         [startLat, startLng],
@@ -634,6 +663,8 @@ async function updateRouteLine(ride: any) {
         dashArray: "10, 10",
       },
     ).addTo(routeLayer);
+
+    (fallbackPolyline as any).rideId = currentRideId;
 
     map.fitBounds(fallbackPolyline.getBounds(), {
       paddingTopLeft: [40, 80],
@@ -878,7 +909,6 @@ async function submitRide() {
     pickingSheetActive.value = false;
     isEditing.value = false;
     editingRideId.value = null;
-    await fetchRides();
     currentRole.value = "driver"; // just in case
   }
 }
@@ -902,7 +932,6 @@ async function confirmDeleteRide() {
     selectedRide.value = null;
     showDeleteRideConfirm.value = false;
     rideToDeleteId.value = null;
-    await fetchRides();
   }
 }
 
@@ -942,7 +971,6 @@ async function confirmRemoveParticipant() {
   } else {
     showRemoveParticipantConfirm.value = false;
     bookingToRemoveId.value = null;
-    await fetchRides();
     // Update selectedRide locally to refresh the UI
     if (selectedRide.value && selectedRide.value.bookings) {
       selectedRide.value.bookings = selectedRide.value.bookings.filter(
@@ -1051,13 +1079,10 @@ async function confirmBooking(rideId: string) {
       }
     };
     frame();
-
-    // Trigger refreshing in background
-    setTimeout(() => fetchRides(), 800);
   } catch (err: any) {
     console.error("Booking failed:", err);
     alert("Erreur lors de la réservation : " + err.message);
-    await fetchRides(); // Rollback to real data
+    fetchRidesDebounced(); // Rollback to real data safely
   } finally {
     bookingLoading.value = false;
   }
@@ -1099,13 +1124,10 @@ async function confirmCancelBooking() {
 
     showCancelConfirm.value = false;
     rideToCancel.value = null;
-
-    // Refresh to stay in sync with server truth
-    setTimeout(() => fetchRides(), 500);
   } catch (err: any) {
     console.error("Cancellation failed:", err);
     alert("Erreur lors de l'annulation : " + err.message);
-    await fetchRides();
+    fetchRidesDebounced();
   } finally {
     bookingLoading.value = false;
   }
@@ -1174,14 +1196,14 @@ function setupRealtime() {
       "postgres_changes",
       { event: "*", schema: "public", table: "rides" },
       () => {
-        fetchRides();
+        fetchRidesDebounced();
       },
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "bookings" },
       () => {
-        fetchRides();
+        fetchRidesDebounced();
       },
     )
     .subscribe();
@@ -3069,6 +3091,24 @@ onUnmounted(() => {
   border-radius: 50%;
   animation: epicenter-heartbeat 2s ease-out infinite;
   z-index: 1;
+}
+
+.epicenter-label {
+  position: absolute;
+  top: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 106, 69, 0.1);
+  color: #006a45;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
 }
 
 /* Car Markers */
