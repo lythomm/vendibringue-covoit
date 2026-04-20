@@ -198,6 +198,7 @@ const newRide = ref({
   origin_name: "",
   total_seats: 3,
   departure_time: "20:00",
+  description: "",
 });
 
 const copySuccess = ref(false);
@@ -1018,6 +1019,7 @@ async function submitRide() {
     origin_lng: pickedCoords.value.lng,
     total_seats: newRide.value.total_seats,
     departure_time: departureStr,
+    description: newRide.value.description,
   };
 
   let error;
@@ -1075,6 +1077,7 @@ function editRide(ride: any) {
     origin_name: ride.origin_name,
     total_seats: ride.total_seats,
     departure_time: formatTimeOnly(ride.departure_time),
+    description: ride.description || "",
   };
   pickedCoords.value = { lat: ride.origin_lat, lng: ride.origin_lng };
   selectedRide.value = null;
@@ -2195,7 +2198,7 @@ onUnmounted(() => {
           </h2>
 
           <!-- Origin Name Input -->
-          <div class="mb-10">
+          <div class="mb-6">
             <label
               class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-3"
               >Lieu de départ (Nom)</label
@@ -2208,7 +2211,21 @@ onUnmounted(() => {
             />
           </div>
 
-          <div class="grid grid-cols-2 gap-6 mb-12">
+          <!-- Description Input -->
+          <div class="mb-6">
+            <label
+              class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-3"
+              >Description (Optionnel)</label
+            >
+            <textarea
+              v-model="newRide.description"
+              placeholder="Ex: Musique à fond, petite pause prévue, ok pour les gros bagages..."
+              rows="3"
+              class="w-full p-4 bg-brand-on-surface/[0.03] border border-brand-outline/10 rounded-2xl font-bold text-base focus:ring-2 focus:ring-brand-primary/20 outline-none resize-none"
+            ></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-6 mb-6">
             <!-- Seats Selector -->
             <div>
               <label
@@ -2287,7 +2304,7 @@ onUnmounted(() => {
     >
       <section
         v-if="selectedRide && selectedRide.driver_id !== auth.user?.id"
-        class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[60] flex flex-col transition-all duration-300"
+        class="bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 fixed inset-x-0 bottom-0 z-[60] flex flex-col transition-all duration-300 max-h-[55dvh]"
         :style="{
           transform:
             isDragging && activeDraggingSheet === 'selectedRide'
@@ -2306,7 +2323,7 @@ onUnmounted(() => {
         </div>
 
         <!-- PASSENGER VIEW -->
-        <div class="px-6 pb-6">
+        <div class="px-6 pb-6 overflow-y-auto">
           <div class="flex items-center gap-4 mb-8">
             <img
               :src="getAvatarUrl(selectedRide.profiles?.avatar_url)"
@@ -2406,6 +2423,14 @@ onUnmounted(() => {
                 <span class="text-brand-on-surface/60">{{
                   selectedRide.origin_name
                 }}</span>
+              </p>
+            </div>
+            <div
+              v-if="selectedRide.description"
+              class="pt-4 border-t border-brand-outline/10"
+            >
+              <p class="text-sm font-medium text-brand-on-surface/70 italic">
+                "{{ selectedRide.description }}"
               </p>
             </div>
           </div>
