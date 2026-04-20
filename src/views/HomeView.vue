@@ -121,10 +121,16 @@ function onSheetDragEnd() {
   const threshold = 100;
 
   if (activeDraggingSheet.value === "explorer") {
-    if (dragTranslateY.value > threshold && !isSheetMinimized.value) {
-      isSheetMinimized.value = true;
-    } else if (dragTranslateY.value < -threshold && isSheetMinimized.value) {
+    // If minimized, dragging up (negative dragTranslateY) expands it
+    // If expanded, dragging down (positive dragTranslateY) minimizes it
+    const dragThreshold = 80;
+    if (isSheetMinimized.value && dragTranslateY.value < -dragThreshold) {
       isSheetMinimized.value = false;
+    } else if (
+      !isSheetMinimized.value &&
+      dragTranslateY.value > dragThreshold
+    ) {
+      isSheetMinimized.value = true;
     }
   } else {
     // Standard modal sheets
@@ -460,7 +466,7 @@ function initMap() {
         </svg>
       </div>
       <div class="epicenter-label">
-        ${eventData.value?.name || "Vendibringue 2026"}
+        Vendibringue
       </div>
     `,
     iconSize: [40, 40],
@@ -1518,13 +1524,12 @@ onUnmounted(() => {
     <!-- Bottom Interface Wrapper -->
     <div
       v-if="!isPickingLocation && !pickingSheetActive"
-      class="mt-auto relative z-40"
+      class="mt-auto relative z-40 pointer-events-none"
     >
       <!-- Bottom Sheet -->
       <section
-        class="bg-white/80 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 flex flex-col transition-all duration-500 overflow-hidden"
+        class="bg-white/80 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.12)] border-t border-brand-outline/20 flex flex-col transition-all duration-500 overflow-hidden max-h-[75vh] pointer-events-auto"
         :class="[
-          isSheetMinimized ? 'max-h-[40px]' : 'max-h-[75vh]',
           isDragging && activeDraggingSheet === 'explorer'
             ? 'transition-none'
             : '',
@@ -1532,8 +1537,10 @@ onUnmounted(() => {
         :style="{
           transform:
             isDragging && activeDraggingSheet === 'explorer'
-              ? `translateY(${dragTranslateY}px)`
-              : '',
+              ? `translateY(calc(${isSheetMinimized ? '100% - 40px' : '0'} + ${dragTranslateY}px))`
+              : isSheetMinimized
+                ? 'translateY(calc(100% - 40px))'
+                : 'translateY(0)',
         }"
       >
         <!-- Drag Handle / Grabber -->
