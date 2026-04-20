@@ -301,8 +301,27 @@ const ridesMarkerData = computed(() => {
   }));
 });
 
+const currentMapBounds = ref<L.LatLngBounds | null>(null);
+
+const visibleRidesMarkerData = computed(() => {
+  if (!currentMapBounds.value) return ridesMarkerData.value;
+  
+  // Add 10% padding to avoid markers popping in/out at the edge
+  const bounds = currentMapBounds.value;
+  const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.1;
+  const lngPad = (bounds.getEast() - bounds.getWest()) * 0.1;
+  const paddedBounds = L.latLngBounds(
+    [bounds.getSouth() - latPad, bounds.getWest() - lngPad],
+    [bounds.getNorth() + latPad, bounds.getEast() + lngPad]
+  );
+
+  return ridesMarkerData.value.filter((r) => 
+    paddedBounds.contains([r.lat, r.lng])
+  );
+});
+
 watch(
-  ridesMarkerData,
+  visibleRidesMarkerData,
   () => {
     updateMarkers();
   },
@@ -456,6 +475,14 @@ function initMap() {
     attributionControl: false,
   });
 
+  // Initialize bounds for lazy loading (Story 4.2.2)
+  currentMapBounds.value = map.getBounds();
+
+  // Update bounds when map is moved or zoomed
+  map.on("moveend zoomend", () => {
+    currentMapBounds.value = map!.getBounds();
+  });
+
   // Close all panels when clicking on the map
   map.on("click", () => {
     closeAllPanels();
@@ -506,18 +533,20 @@ function initMap() {
 }
 
 const markers = ref<Map<string, L.Marker>>(new Map());
+const markerFingerprints = new Map<string, string>();
 
 function updateMarkers() {
   if (!map) return;
 
-  const data = ridesMarkerData.value;
+  const data = visibleRidesMarkerData.value;
 
-  // 1. Remove markers for rides that are no longer active
+  // 1. Remove markers for rides that are no longer active or visible
   const activeIds = new Set(data.map((r) => r.id));
   markers.value.forEach((marker, id) => {
     if (!activeIds.has(id)) {
       marker.remove();
       markers.value.delete(id);
+      markerFingerprints.delete(id);
     }
   });
 
@@ -531,9 +560,18 @@ function updateMarkers() {
       if (markers.value.has(ride.id)) {
         markers.value.get(ride.id)?.remove();
         markers.value.delete(ride.id);
+        markerFingerprints.delete(ride.id);
       }
       return;
     }
+
+    // === FINE-GRAINED UPDATE (Story 4.2.1) ===
+    const fingerprint = `${ride.id}|${ride.lat}|${ride.lng}|${seatsLeft}|${isUserRide}|${ride.first_name}|${ride.avatar_url}`;
+    const hasExisting = markers.value.has(ride.id);
+    const prevFingerprint = markerFingerprints.get(ride.id);
+
+    // Skip if nothing changed visually
+    if (hasExisting && prevFingerprint === fingerprint) return;
 
     const carIcon = L.divIcon({
       className: "car-marker-wrapper",
@@ -561,7 +599,7 @@ function updateMarkers() {
       iconAnchor: [25, 55],
     });
 
-    if (markers.value.has(ride.id)) {
+    if (hasExisting) {
       const marker = markers.value.get(ride.id);
       marker?.setLatLng([ride.lat, ride.lng]);
       marker?.setIcon(carIcon);
@@ -585,6 +623,9 @@ function updateMarkers() {
 
       markers.value.set(ride.id, marker);
     }
+    
+    // Store latest state fingerprint
+    markerFingerprints.set(ride.id, fingerprint);
   });
 }
 
