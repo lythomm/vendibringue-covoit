@@ -204,6 +204,59 @@ const copySuccess = ref(false);
 const isEditing = ref(false);
 const editingRideId = ref<string | null>(null);
 
+// Route Cache Constants
+const ROUTE_CACHE_KEY = "vb_route_cache";
+const MAX_ROUTE_CACHE = 20;
+
+function getRouteFromCache(rideId: string, startLat: number, startLng: number) {
+  const raw = localStorage.getItem(ROUTE_CACHE_KEY);
+  if (!raw) return null;
+  try {
+    const cache = JSON.parse(raw);
+    const entry = cache[rideId];
+    if (entry) {
+      // Verify starting point hasn't changed (fingerprint)
+      if (Math.abs(entry.startLat - startLat) < 0.0001 && Math.abs(entry.startLng - startLng) < 0.0001) {
+        // Update timestamp for LRU
+        entry.timestamp = Date.now();
+        localStorage.setItem(ROUTE_CACHE_KEY, JSON.stringify(cache));
+        return entry.coords;
+      }
+    }
+  } catch (e) {
+    console.error("Route cache error:", e);
+  }
+  return null;
+}
+
+function saveRouteToCache(rideId: string, startLat: number, startLng: number, coords: number[][]) {
+  const raw = localStorage.getItem(ROUTE_CACHE_KEY);
+  let cache: any = {};
+  if (raw) {
+    try {
+      cache = JSON.parse(raw);
+    } catch (e) {
+      cache = {};
+    }
+  }
+
+  cache[rideId] = {
+    startLat,
+    startLng,
+    coords,
+    timestamp: Date.now()
+  };
+
+  // LRU: If too many, delete oldest
+  const keys = Object.keys(cache);
+  if (keys.length > MAX_ROUTE_CACHE) {
+    const oldestKey = keys.reduce((a, b) => cache[a].timestamp < cache[b].timestamp ? a : b);
+    delete cache[oldestKey];
+  }
+
+  localStorage.setItem(ROUTE_CACHE_KEY, JSON.stringify(cache));
+}
+
 function copyCoordinates() {
   const coords = `${eventData.value.center_lat}, ${eventData.value.center_lng}`;
   navigator.clipboard.writeText(coords).then(() => {
@@ -638,7 +691,6 @@ function updateMarkers() {
 async function updateRouteLine(ride: any) {
   if (!map || !eventData.value || !routeLayer) return;
 
-  // Track if THIS specific call is still relevant
   const currentRideId = ride.id;
   const startLat = ride.origin_lat;
   const startLng = ride.origin_lng;
@@ -646,9 +698,9 @@ async function updateRouteLine(ride: any) {
   const endLng = eventData.value.center_lng;
 
   const isUserRide = ride.driver_id === auth.user?.id || isPassenger(ride.id);
-  const routeColor = isUserRide ? "#4285f4" : "#006a45"; // Keep hex for Leaflet polyline color as it prefers literal strings, but use token values
+  const routeColor = isUserRide ? "#4285f4" : "#006a45";
 
-  // Optimization: If we already have this ride's route, just update style
+  // 1. Check if already on map (Update color only)
   const existingLayers = routeLayer.getLayers();
   const existingPolyline = existingLayers.find(
     (l) => l instanceof L.Polyline && (l as any).rideId === currentRideId,
@@ -668,24 +720,46 @@ async function updateRouteLine(ride: any) {
     }
   }
 
+  // 2. Check Persistent Cache (localStorage)
+  const cachedCoords = getRouteFromCache(currentRideId, startLat, startLng);
+  if (cachedCoords) {
+    if (!selectedRide.value || selectedRide.value.id !== currentRideId) return;
+    
+    routeLayer.clearLayers();
+    const polyline = L.polyline(cachedCoords, {
+      color: routeColor,
+      weight: 6,
+      opacity: 0.8,
+      lineJoin: "round",
+    }).addTo(routeLayer);
+
+    (polyline as any).rideId = currentRideId;
+    map.fitBounds(polyline.getBounds(), {
+      paddingTopLeft: [40, 80],
+      paddingBottomRight: [40, Math.min(window.innerHeight * 0.6, 500)],
+      animate: true,
+      duration: 1.5,
+    });
+    return;
+  }
+
+  // 3. Fetch from OSRM
   try {
-    // Try OSRM for real route
     const response = await fetch(
       `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`,
     );
     const data = await response.json();
 
     if (data.routes && data.routes.length > 0) {
-      // Race condition fix: check if we still want THIS ride's route
-      if (!selectedRide.value || selectedRide.value.id !== currentRideId) {
-        return;
-      }
+      if (!selectedRide.value || selectedRide.value.id !== currentRideId) return;
 
       const coordinates = data.routes[0].geometry.coordinates.map(
         (c: [number, number]) => [c[1], c[0]],
       );
 
-      // Successfully got new route: clear and add
+      // Save to Cache
+      saveRouteToCache(currentRideId, startLat, startLng, coordinates);
+
       routeLayer.clearLayers();
       const polyline = L.polyline(coordinates, {
         color: routeColor,
@@ -694,10 +768,7 @@ async function updateRouteLine(ride: any) {
         lineJoin: "round",
       }).addTo(routeLayer);
 
-      // Tag for future color-only updates
       (polyline as any).rideId = currentRideId;
-
-      // Zoom to fit the route
       map.fitBounds(polyline.getBounds(), {
         paddingTopLeft: [40, 80],
         paddingBottomRight: [40, Math.min(window.innerHeight * 0.6, 500)],
@@ -710,7 +781,6 @@ async function updateRouteLine(ride: any) {
   } catch (err) {
     if (!selectedRide.value || selectedRide.value.id !== currentRideId) return;
 
-    // Fallback to straight line
     routeLayer.clearLayers();
     const fallbackPolyline = L.polyline(
       [
@@ -726,7 +796,6 @@ async function updateRouteLine(ride: any) {
     ).addTo(routeLayer);
 
     (fallbackPolyline as any).rideId = currentRideId;
-
     map.fitBounds(fallbackPolyline.getBounds(), {
       paddingTopLeft: [40, 80],
       paddingBottomRight: [40, Math.min(window.innerHeight * 0.6, 500)],
