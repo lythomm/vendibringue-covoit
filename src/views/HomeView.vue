@@ -4,6 +4,8 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { supabase } from "@/lib/supabase";
 import L from "leaflet";
+// @ts-ignore
+if (typeof window !== 'undefined') window.L = L;
 import { getAvatarUrl } from "@/lib/user";
 import confetti from "canvas-confetti";
 
@@ -18,6 +20,7 @@ let map: L.Map | null = null;
 let epicenterMarker: L.Marker | null = null;
 let userMarker: L.Marker | L.CircleMarker | null = null;
 let routeLayer: L.LayerGroup | null = null;
+let markerLayerGroup: any | null = null;
 let realtimeChannel: any = null;
 
 const isOffline = ref(!navigator.onLine);
@@ -304,20 +307,8 @@ const ridesMarkerData = computed(() => {
 const currentMapBounds = ref<L.LatLngBounds | null>(null);
 
 const visibleRidesMarkerData = computed(() => {
-  if (!currentMapBounds.value) return ridesMarkerData.value;
-  
-  // Add 10% padding to avoid markers popping in/out at the edge
-  const bounds = currentMapBounds.value;
-  const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.1;
-  const lngPad = (bounds.getEast() - bounds.getWest()) * 0.1;
-  const paddedBounds = L.latLngBounds(
-    [bounds.getSouth() - latPad, bounds.getWest() - lngPad],
-    [bounds.getNorth() + latPad, bounds.getEast() + lngPad]
-  );
-
-  return ridesMarkerData.value.filter((r) => 
-    paddedBounds.contains([r.lat, r.lng])
-  );
+  // Simplified: Always return all markers to ensure visibility
+  return ridesMarkerData.value;
 });
 
 watch(
@@ -475,29 +466,28 @@ function initMap() {
     attributionControl: false,
   });
 
-  // Initialize bounds for lazy loading (Story 4.2.2)
-  currentMapBounds.value = map.getBounds();
-
-  // Update bounds when map is moved or zoomed
-  map.on("moveend zoomend", () => {
-    currentMapBounds.value = map!.getBounds();
-  });
-
   // Close all panels when clicking on the map
   map.on("click", () => {
     closeAllPanels();
   });
 
-  // Initialize layer group for routes
-  routeLayer = L.layerGroup().addTo(map);
-
   // Premium minimalist tile layer (CartoDB Light)
   L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
     {
-      maxZoom: 19,
-    },
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: "abcd",
+      maxZoom: 20,
+    }
   ).addTo(map);
+
+  // Initialize layer group for routes
+  routeLayer = L.layerGroup().addTo(map);
+
+  // Initialize marker cluster group with safety check
+  // Initialize marker layer group (Story 4.2.2)
+  markerLayerGroup = L.layerGroup().addTo(map);
 
   // Epicenter Marker (Story 2.1)
   const epicenterIcon = L.divIcon({
@@ -536,15 +526,17 @@ const markers = ref<Map<string, L.Marker>>(new Map());
 const markerFingerprints = new Map<string, string>();
 
 function updateMarkers() {
-  if (!map) return;
+  if (!map || !markerLayerGroup) return;
 
   const data = visibleRidesMarkerData.value;
+  const currentZoom = map.getZoom();
+  const isSimplified = false; // Always show full bubbles as requested
 
-  // 1. Remove markers for rides that are no longer active or visible
+  // 1. Remove markers for rides that are no longer active
   const activeIds = new Set(data.map((r) => r.id));
   markers.value.forEach((marker, id) => {
     if (!activeIds.has(id)) {
-      marker.remove();
+      if (markerLayerGroup) markerLayerGroup.removeLayer(marker);
       markers.value.delete(id);
       markerFingerprints.delete(id);
     }
@@ -556,57 +548,69 @@ function updateMarkers() {
     const seatsLeft = ride.seatsLeft;
 
     if (seatsLeft <= 0 && !isUserRide) {
-      // If no seats, remove marker if exists
       if (markers.value.has(ride.id)) {
-        markers.value.get(ride.id)?.remove();
+        const m = markers.value.get(ride.id);
+        if (m) markerLayerGroup!.removeLayer(m);
         markers.value.delete(ride.id);
         markerFingerprints.delete(ride.id);
       }
       return;
     }
 
-    // === FINE-GRAINED UPDATE (Story 4.2.1) ===
+    // === FINE-GRAINED UPDATE ===
     const fingerprint = `${ride.id}|${ride.lat}|${ride.lng}|${seatsLeft}|${isUserRide}|${ride.first_name}|${ride.avatar_url}`;
     const hasExisting = markers.value.has(ride.id);
     const prevFingerprint = markerFingerprints.get(ride.id);
 
-    // Skip if nothing changed visually
     if (hasExisting && prevFingerprint === fingerprint) return;
 
-    const carIcon = L.divIcon({
-      className: "car-marker-wrapper",
-      html: `
-        <div class="car-marker group">
-          <div class="car-bubble group-active:scale-90 transition-transform bg-white" style="${
-            isUserRide
-              ? "border-color: var(--color-brand-accent); box-shadow: 0 8px 25px color-mix(in srgb, var(--color-brand-accent) 40%, transparent);"
-              : "border-color: var(--color-brand-primary); box-shadow: 0 8px 25px color-mix(in srgb, var(--color-brand-primary) 40%, transparent);"
-          }">
-            <div class="w-full h-full rounded-full overflow-hidden">
-               <img src="${getAvatarUrl(ride.avatar_url)}" class="w-full h-full object-cover" />
+    let icon: L.DivIcon;
+
+    if (isSimplified && !isUserRide) {
+      // Small dot for simplified view
+      icon = L.divIcon({
+        className: "car-marker-simplified-wrapper",
+        html: `<div class="car-dot ${isUserRide ? 'is-user' : ''}"></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+    } else {
+      // Full bubble icon
+      icon = L.divIcon({
+        className: "car-marker-wrapper",
+        html: `
+          <div class="car-marker group ${isUserRide ? 'is-user-ride' : ''}">
+            <div class="car-bubble group-active:scale-90 transition-transform bg-white" style="${
+              isUserRide
+                ? "border-color: var(--color-brand-accent); box-shadow: 0 8px 25px color-mix(in srgb, var(--color-brand-accent) 40%, transparent);"
+                : "border-color: var(--color-brand-primary); box-shadow: 0 8px 25px color-mix(in srgb, var(--color-brand-primary) 40%, transparent);"
+            }">
+              <div class="w-full h-full rounded-full overflow-hidden">
+                 <img src="${getAvatarUrl(ride.avatar_url)}" class="w-full h-full object-cover" loading="lazy" />
+              </div>
+              <div class="seats-badge">${seatsLeft}</div>
             </div>
-            <div class="seats-badge">${seatsLeft}</div>
+            <div class="car-label" style="${
+              isUserRide
+                ? "border-color: color-mix(in srgb, var(--color-brand-accent) 20%, transparent); color: var(--color-brand-accent);"
+                : ""
+            }">${ride.first_name || "???"}</div>
+            <div class="car-pointer"></div>
           </div>
-          <div class="car-label" style="${
-            isUserRide
-              ? "border-color: color-mix(in srgb, var(--color-brand-accent) 20%, transparent); color: var(--color-brand-accent);"
-              : ""
-          }">${ride.first_name || "???"}</div>
-          <div class="car-pointer"></div>
-        </div>
-      `,
-      iconSize: [50, 60],
-      iconAnchor: [25, 55],
-    });
+        `,
+        iconSize: [50, 60],
+        iconAnchor: [25, 55],
+      });
+    }
 
     if (hasExisting) {
       const marker = markers.value.get(ride.id);
       marker?.setLatLng([ride.lat, ride.lng]);
-      marker?.setIcon(carIcon);
+      marker?.setIcon(icon);
     } else {
       const marker = L.marker([ride.lat, ride.lng], {
-        icon: carIcon,
-      }).addTo(map!);
+        icon: icon,
+      });
 
       marker.on("click", () => {
         const fullRide = rides.value.find((r) => r.id === ride.id);
@@ -621,10 +625,10 @@ function updateMarkers() {
         }
       });
 
+      markerLayerGroup!.addLayer(marker);
       markers.value.set(ride.id, marker);
     }
     
-    // Store latest state fingerprint
     markerFingerprints.set(ride.id, fingerprint);
   });
 }
@@ -1310,11 +1314,12 @@ onMounted(async () => {
     }, 4000);
   }
 
+  // Fetch event data first to center the map correctly
+  await fetchEventData();
   initMap();
   locateMe();
 
-  // Non-blocking fetches
-  fetchEventData();
+  // Fetch rides after map is ready
   fetchRides();
   setupRealtime();
 });
@@ -3343,5 +3348,33 @@ onUnmounted(() => {
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.05);
   border-radius: 10px;
+}
+
+/* Simplified Marker Styles */
+.car-marker-simplified-wrapper {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.car-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--color-brand-primary);
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.car-dot.is-user {
+  background: var(--color-brand-accent);
+  width: 12px;
+  height: 12px;
+}
+
+/* Performance Layer Promotion */
+.car-marker, .epicenter-pulse {
+  will-change: transform;
 }
 </style>
