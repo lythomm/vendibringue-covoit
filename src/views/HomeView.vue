@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/auth";
 import { supabase } from "@/lib/supabase";
 import L from "leaflet";
 // @ts-ignore
-if (typeof window !== 'undefined') window.L = L;
+if (typeof window !== "undefined") window.L = L;
 import { getAvatarUrl } from "@/lib/user";
 import confetti from "canvas-confetti";
 
@@ -216,7 +216,10 @@ function getRouteFromCache(rideId: string, startLat: number, startLng: number) {
     const entry = cache[rideId];
     if (entry) {
       // Verify starting point hasn't changed (fingerprint)
-      if (Math.abs(entry.startLat - startLat) < 0.0001 && Math.abs(entry.startLng - startLng) < 0.0001) {
+      if (
+        Math.abs(entry.startLat - startLat) < 0.0001 &&
+        Math.abs(entry.startLng - startLng) < 0.0001
+      ) {
         // Update timestamp for LRU
         entry.timestamp = Date.now();
         localStorage.setItem(ROUTE_CACHE_KEY, JSON.stringify(cache));
@@ -229,7 +232,12 @@ function getRouteFromCache(rideId: string, startLat: number, startLng: number) {
   return null;
 }
 
-function saveRouteToCache(rideId: string, startLat: number, startLng: number, coords: number[][]) {
+function saveRouteToCache(
+  rideId: string,
+  startLat: number,
+  startLng: number,
+  coords: number[][],
+) {
   const raw = localStorage.getItem(ROUTE_CACHE_KEY);
   let cache: any = {};
   if (raw) {
@@ -244,13 +252,15 @@ function saveRouteToCache(rideId: string, startLat: number, startLng: number, co
     startLat,
     startLng,
     coords,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   };
 
   // LRU: If too many, delete oldest
   const keys = Object.keys(cache);
   if (keys.length > MAX_ROUTE_CACHE) {
-    const oldestKey = keys.reduce((a, b) => cache[a].timestamp < cache[b].timestamp ? a : b);
+    const oldestKey = keys.reduce((a, b) =>
+      cache[a].timestamp < cache[b].timestamp ? a : b,
+    );
     delete cache[oldestKey];
   }
 
@@ -532,7 +542,7 @@ function initMap() {
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: "abcd",
       maxZoom: 20,
-    }
+    },
   ).addTo(map);
 
   // Initialize layer group for routes
@@ -600,15 +610,7 @@ function updateMarkers() {
     const isUserRide = ride.isUserRide;
     const seatsLeft = ride.seatsLeft;
 
-    if (seatsLeft <= 0 && !isUserRide) {
-      if (markers.value.has(ride.id)) {
-        const m = markers.value.get(ride.id);
-        if (m) markerLayerGroup!.removeLayer(m);
-        markers.value.delete(ride.id);
-        markerFingerprints.delete(ride.id);
-      }
-      return;
-    }
+    // Removed early return for full rides so they show up on the map
 
     // === FINE-GRAINED UPDATE ===
     const fingerprint = `${ride.id}|${ride.lat}|${ride.lng}|${seatsLeft}|${isUserRide}|${ride.first_name}|${ride.avatar_url}`;
@@ -623,7 +625,7 @@ function updateMarkers() {
       // Small dot for simplified view
       icon = L.divIcon({
         className: "car-marker-simplified-wrapper",
-        html: `<div class="car-dot ${isUserRide ? 'is-user' : ''}"></div>`,
+        html: `<div class="car-dot ${isUserRide ? "is-user" : ""}"></div>`,
         iconSize: [12, 12],
         iconAnchor: [6, 6],
       });
@@ -632,7 +634,7 @@ function updateMarkers() {
       icon = L.divIcon({
         className: "car-marker-wrapper",
         html: `
-          <div class="car-marker group ${isUserRide ? 'is-user-ride' : ''}">
+          <div class="car-marker group ${isUserRide ? "is-user-ride" : ""} ${seatsLeft <= 0 ? "grayscale opacity-60" : ""}">
             <div class="car-bubble group-active:scale-90 transition-transform bg-white" style="${
               isUserRide
                 ? "border-color: var(--color-brand-accent); box-shadow: 0 8px 25px color-mix(in srgb, var(--color-brand-accent) 40%, transparent);"
@@ -641,7 +643,9 @@ function updateMarkers() {
               <div class="w-full h-full rounded-full overflow-hidden">
                  <img src="${getAvatarUrl(ride.avatar_url)}" class="w-full h-full object-cover" loading="lazy" />
               </div>
-              <div class="seats-badge">${seatsLeft}</div>
+              <div class="absolute -top-1.5 -right-1.5 z-10 bg-brand-error text-white text-[10px] font-black h-5 min-w-[20px] ${seatsLeft <= 0 ? "px-2" : "px-1"} rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                ${seatsLeft > 0 ? seatsLeft : "Plein"}
+              </div>
             </div>
             <div class="car-label" style="${
               isUserRide
@@ -681,12 +685,10 @@ function updateMarkers() {
       markerLayerGroup!.addLayer(marker);
       markers.value.set(ride.id, marker);
     }
-    
+
     markerFingerprints.set(ride.id, fingerprint);
   });
 }
-
-
 
 async function updateRouteLine(ride: any) {
   if (!map || !eventData.value || !routeLayer) return;
@@ -724,7 +726,7 @@ async function updateRouteLine(ride: any) {
   const cachedCoords = getRouteFromCache(currentRideId, startLat, startLng);
   if (cachedCoords) {
     if (!selectedRide.value || selectedRide.value.id !== currentRideId) return;
-    
+
     routeLayer.clearLayers();
     const polyline = L.polyline(cachedCoords, {
       color: routeColor,
@@ -751,7 +753,8 @@ async function updateRouteLine(ride: any) {
     const data = await response.json();
 
     if (data.routes && data.routes.length > 0) {
-      if (!selectedRide.value || selectedRide.value.id !== currentRideId) return;
+      if (!selectedRide.value || selectedRide.value.id !== currentRideId)
+        return;
 
       const coordinates = data.routes[0].geometry.coordinates.map(
         (c: [number, number]) => [c[1], c[0]],
@@ -1772,6 +1775,9 @@ onUnmounted(() => {
                       isPassenger(ride.id)
                         ? 'bg-white border-2 border-[#4285F4] shadow-md shadow-[#4285F4]/10'
                         : 'bg-white border border-brand-outline/30 hover:border-brand-primary/20',
+                      !isPassenger(ride.id) && getSeatsLeft(ride) <= 0
+                        ? 'grayscale opacity-60'
+                        : '',
                     ]"
                   >
                     <div class="relative flex-shrink-0">
@@ -1853,11 +1859,19 @@ onUnmounted(() => {
                         :class="isPassenger(ride.id) && 'mb-3'"
                       >
                         <span
-                          class="text-sm font-bold text-brand-on-surface/60"
+                          class="text-sm font-bold"
+                          :class="
+                            getSeatsLeft(ride) <= 0
+                              ? 'text-brand-error'
+                              : 'text-brand-on-surface/60'
+                          "
                           v-if="!isPassenger(ride.id)"
                         >
-                          {{ getSeatsLeft(ride) }}
-                          place{{ getSeatsLeft(ride) > 1 ? "s" : "" }}
+                          {{
+                            getSeatsLeft(ride) > 0
+                              ? `${getSeatsLeft(ride)} place${getSeatsLeft(ride) > 1 ? "s" : ""}`
+                              : "Plein"
+                          }}
                         </span>
                         <span
                           v-if="!isPassenger(ride.id)"
@@ -2361,10 +2375,20 @@ onUnmounted(() => {
               </div>
             </div>
             <div class="ml-auto text-right">
-              <span class="text-3xl font-black text-brand-primary">
+              <span
+                v-if="getSeatsLeft(selectedRide) > 0"
+                class="text-3xl font-black text-brand-primary transition-colors"
+              >
                 {{ getSeatsLeft(selectedRide) }}
               </span>
+              <span
+                v-else
+                class="inline-flex items-center px-4 py-1.5 rounded-full bg-brand-error/10 text-brand-error text-sm font-black uppercase tracking-wider border border-brand-error/10"
+              >
+                Plein
+              </span>
               <p
+                v-if="getSeatsLeft(selectedRide) > 0"
                 class="text-[10px] font-black uppercase text-brand-on-surface/40"
               >
                 Place{{ getSeatsLeft(selectedRide) > 1 ? "s" : "" }}
@@ -2479,15 +2503,24 @@ onUnmounted(() => {
                 !isPassenger(selectedRide.id)
               "
               @click="confirmBooking(selectedRide.id)"
-              :disabled="bookingLoading"
-              class="flex-[3] py-4 bg-brand-primary text-white font-black text-lg rounded-2xl shadow-2xl shadow-brand-primary/30 active:scale-95 transition-all flex items-center justify-center gap-3"
+              :disabled="bookingLoading || getSeatsLeft(selectedRide) <= 0"
+              class="flex-[3] py-4 font-black text-lg rounded-2xl shadow-2xl transition-all flex items-center justify-center gap-3"
+              :class="
+                getSeatsLeft(selectedRide) > 0
+                  ? 'bg-brand-primary text-white shadow-brand-primary/30 active:scale-95 hover:scale-[1.02]'
+                  : 'bg-brand-on-surface/10 text-brand-on-surface/30 cursor-not-allowed'
+              "
             >
               <span
                 v-if="bookingLoading"
                 class="material-symbols-outlined animate-spin"
                 >refresh</span
               >
-              <span v-else>Réserver ma place</span>
+              <span v-else>{{
+                getSeatsLeft(selectedRide) > 0
+                  ? "Réserver ma place"
+                  : "Covoit Plein"
+              }}</span>
             </button>
             <button
               v-else-if="isPassenger(selectedRide.id)"
@@ -3346,25 +3379,6 @@ onUnmounted(() => {
   z-index: 2;
 }
 
-.seats-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  z-index: 10;
-  background: var(--color-brand-error);
-  color: white;
-  font-size: 10px;
-  font-weight: 900;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid white;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-}
-
 .car-label {
   margin-top: 4px;
   background: white;
@@ -3443,7 +3457,8 @@ onUnmounted(() => {
 }
 
 /* Performance Layer Promotion */
-.car-marker, .epicenter-pulse {
+.car-marker,
+.epicenter-pulse {
   will-change: transform;
 }
 </style>
