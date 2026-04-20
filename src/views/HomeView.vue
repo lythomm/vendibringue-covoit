@@ -284,12 +284,29 @@ const availableRides = computed(() => {
   });
 });
 
+const ridesMarkerData = computed(() => {
+  const allVisible = [...availableRides.value];
+  if (myRide.value) {
+    allVisible.push(myRide.value);
+  }
+
+  return allVisible.map((r) => ({
+    id: r.id,
+    lat: r.origin_lat,
+    lng: r.origin_lng,
+    seatsLeft: getSeatsLeft(r),
+    isUserRide: r.driver_id === auth.user?.id || isPassenger(r.id),
+    first_name: r.profiles?.first_name,
+    avatar_url: r.profiles?.avatar_url,
+  }));
+});
+
 watch(
-  availableRides,
+  ridesMarkerData,
   () => {
     updateMarkers();
   },
-  { deep: true },
+  { deep: false },
 );
 
 function getBookedCount(ride: any) {
@@ -315,7 +332,7 @@ watch(
       }
     }
   },
-  { deep: true },
+  { deep: false },
 );
 
 const totalAvailableSeats = computed(() =>
@@ -493,13 +510,10 @@ const markers = ref<Map<string, L.Marker>>(new Map());
 function updateMarkers() {
   if (!map) return;
 
-  const allVisibleRides = [...availableRides.value];
-  if (myRide.value) {
-    allVisibleRides.push(myRide.value);
-  }
+  const data = ridesMarkerData.value;
 
   // 1. Remove markers for rides that are no longer active
-  const activeIds = new Set(allVisibleRides.map((r) => r.id));
+  const activeIds = new Set(data.map((r) => r.id));
   markers.value.forEach((marker, id) => {
     if (!activeIds.has(id)) {
       marker.remove();
@@ -508,9 +522,9 @@ function updateMarkers() {
   });
 
   // 2. Add or update markers for current rides
-  allVisibleRides.forEach((ride) => {
-    const isUserRide = ride.driver_id === auth.user?.id || isPassenger(ride.id);
-    const seatsLeft = getSeatsLeft(ride);
+  data.forEach((ride) => {
+    const isUserRide = ride.isUserRide;
+    const seatsLeft = ride.seatsLeft;
 
     if (seatsLeft <= 0 && !isUserRide) {
       // If no seats, remove marker if exists
@@ -531,11 +545,15 @@ function updateMarkers() {
               : "border-color: var(--color-brand-primary); box-shadow: 0 8px 25px color-mix(in srgb, var(--color-brand-primary) 40%, transparent);"
           }">
             <div class="w-full h-full rounded-full overflow-hidden">
-               <img src="${getAvatarUrl(ride.profiles?.avatar_url)}" class="w-full h-full object-cover" />
+               <img src="${getAvatarUrl(ride.avatar_url)}" class="w-full h-full object-cover" />
             </div>
             <div class="seats-badge">${seatsLeft}</div>
           </div>
-          <div class="car-label" style="${isUserRide ? "border-color: color-mix(in srgb, var(--color-brand-accent) 20%, transparent); color: var(--color-brand-accent);" : ""}">${ride.profiles?.first_name}</div>
+          <div class="car-label" style="${
+            isUserRide
+              ? "border-color: color-mix(in srgb, var(--color-brand-accent) 20%, transparent); color: var(--color-brand-accent);"
+              : ""
+          }">${ride.first_name || "???"}</div>
           <div class="car-pointer"></div>
         </div>
       `,
@@ -545,22 +563,22 @@ function updateMarkers() {
 
     if (markers.value.has(ride.id)) {
       const marker = markers.value.get(ride.id);
-      marker?.setLatLng([ride.origin_lat, ride.origin_lng]);
+      marker?.setLatLng([ride.lat, ride.lng]);
       marker?.setIcon(carIcon);
     } else {
-      const marker = L.marker([ride.origin_lat, ride.origin_lng], {
+      const marker = L.marker([ride.lat, ride.lng], {
         icon: carIcon,
       }).addTo(map!);
 
       marker.on("click", () => {
-        // Fix for Story 4.1.2: Get latest data from the master list instead of closed-over stale object
-        const latestRide = rides.value.find((r) => r.id === ride.id) || ride;
-        selectedRide.value = latestRide;
-
-        if (latestRide.driver_id === auth.user?.id) {
-          currentTab.value = "driver";
-          isSheetMinimized.value = false;
-        } else {
+        const fullRide = rides.value.find((r) => r.id === ride.id);
+        if (fullRide) {
+          selectedRide.value = fullRide;
+          if (fullRide.driver_id === auth.user?.id) {
+            currentTab.value = "driver";
+          } else {
+            currentTab.value = "passenger";
+          }
           isSheetMinimized.value = false;
         }
       });
@@ -570,15 +588,7 @@ function updateMarkers() {
   });
 }
 
-// Watch for rides changes to update markers
-// Watch for rides changes to update markers
-watch(
-  rides,
-  () => {
-    updateMarkers();
-  },
-  { deep: true },
-);
+
 
 async function updateRouteLine(ride: any) {
   if (!map || !eventData.value || !routeLayer) return;
@@ -2172,7 +2182,9 @@ onUnmounted(() => {
             <img
               :src="getAvatarUrl(selectedRide.profiles?.avatar_url)"
               class="w-16 h-16 rounded-full border-2 border-brand-primary bg-brand-on-surface/[0.05] object-cover"
-              @error="(e) => (e.target as HTMLImageElement).src = getAvatarUrl('1')"
+              @error="
+                (e) => ((e.target as HTMLImageElement).src = getAvatarUrl('1'))
+              "
               alt="Driver Avatar"
             />
             <div>
@@ -2285,8 +2297,11 @@ onUnmounted(() => {
               >
                 <img
                   :src="getAvatarUrl(booking.profiles?.avatar_url)"
-                   class="w-8 h-8 rounded-full bg-brand-on-surface/[0.05] shadow-sm object-cover"
-                  @error="(e) => (e.target as HTMLImageElement).src = getAvatarUrl('1')"
+                  class="w-8 h-8 rounded-full bg-brand-on-surface/[0.05] shadow-sm object-cover"
+                  @error="
+                    (e) =>
+                      ((e.target as HTMLImageElement).src = getAvatarUrl('1'))
+                  "
                 />
                 <div class="flex-1">
                   <p class="font-black text-sm text-brand-on-surface">
@@ -2433,7 +2448,7 @@ onUnmounted(() => {
             ></div>
           </div>
 
-          <div v-else class="flex-1 overflow-y-auto px-6 pb-24 scrollbar-hide">
+          <div v-else class="flex-1 overflow-y-auto px-6 pb-12 scrollbar-hide">
             <!-- Avatar Section -->
             <div class="flex flex-col items-center mt-4 mb-10">
               <div class="relative group">
@@ -2447,7 +2462,10 @@ onUnmounted(() => {
                   <img
                     :src="getAvatarUrl(auth.user?.avatar_url)"
                     class="size-24 rounded-full border-4 border-white shadow-xl relative z-10 bg-brand-on-surface/[0.05] object-cover"
-                    @error="(e) => (e.target as HTMLImageElement).src = getAvatarUrl('1')"
+                    @error="
+                      (e) =>
+                        ((e.target as HTMLImageElement).src = getAvatarUrl('1'))
+                    "
                     alt="Profile Avatar"
                   />
                   <!-- Edit Icon overlay -->
@@ -2524,7 +2542,7 @@ onUnmounted(() => {
             <button
               v-if="JSON.stringify(editedProfile) !== JSON.stringify(auth.user)"
               @click="updateProfile"
-              class="w-full py-4 mb-4 bg-brand-primary text-white font-black text-lg rounded-[20px] shadow-xl shadow-brand-primary/20 active:scale-95 transition-all"
+              class="w-full py-4 mb-4 bg-brand-primary text-white font-black text-lg rounded-[24px] shadow-xl shadow-brand-primary/20 active:scale-95 transition-all"
             >
               Enregistrer
             </button>
@@ -2544,13 +2562,76 @@ onUnmounted(() => {
             <!-- Logout Button -->
             <button
               @click="handleLogout"
-              class="w-full py-5 bg-[#FFF0F0] text-[#FF4B4B] font-black text-[15px] rounded-[24px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
+              class="w-full py-4 bg-[#FFF0F0] text-[#FF4B4B] font-black text-[15px] rounded-[24px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
             >
               <span class="material-symbols-outlined !text-[20px] font-bold"
                 >logout</span
               >
               Déconnexion
             </button>
+
+            <!-- Developer Signature -->
+            <div
+              class="flex flex-col items-center gap-4 pt-8 border-t border-brand-outline/10"
+            >
+              <p
+                class="text-[11px] font-black tracking-[0.2em] text-brand-on-surface/30 uppercase text-center"
+              >
+                Développé avec ❤️ par Thomas LY
+              </p>
+              <div class="flex items-center gap-6">
+                <a
+                  href="https://github.com/lythomm"
+                  target="_blank"
+                  class="w-10 h-10 rounded-full bg-brand-surface border border-brand-outline/10 flex items-center justify-center text-brand-on-surface/40 hover:text-[#24292e] hover:border-[#24292e]/20 transition-all active:scale-90"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                    <path
+                      d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
+                    />
+                  </svg>
+                </a>
+                <a
+                  href="https://www.instagram.com/thom_lyy/"
+                  target="_blank"
+                  class="w-10 h-10 rounded-full bg-brand-surface border border-brand-outline/10 flex items-center justify-center text-brand-on-surface/40 hover:text-[#E4405F] hover:border-[#E4405F]/20 transition-all active:scale-90"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="w-5 h-5"
+                  >
+                    <rect
+                      x="2"
+                      y="2"
+                      width="20"
+                      height="20"
+                      rx="5"
+                      ry="5"
+                    ></rect>
+                    <path
+                      d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"
+                    ></path>
+                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                  </svg>
+                </a>
+                <a
+                  href="https://wa.me/33611597627"
+                  target="_blank"
+                  class="w-10 h-10 rounded-full bg-brand-surface border border-brand-outline/10 flex items-center justify-center text-brand-on-surface/40 hover:text-[#25D366] hover:border-[#25D366]/20 transition-all active:scale-90"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                    <path
+                      d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"
+                    />
+                  </svg>
+                </a>
+              </div>
+            </div>
           </div>
         </section>
       </Transition>
@@ -3086,7 +3167,8 @@ onUnmounted(() => {
   background: var(--color-brand-primary);
   border-radius: 50%;
   border: 4px solid white;
-  box-shadow: 0 4px 15px color-mix(in srgb, var(--color-brand-primary) 40%, transparent);
+  box-shadow: 0 4px 15px
+    color-mix(in srgb, var(--color-brand-primary) 40%, transparent);
   z-index: 2;
   display: flex;
   align-items: center;
@@ -3114,7 +3196,8 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 800;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  border: 1px solid color-mix(in srgb, var(--color-brand-primary) 10%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--color-brand-primary) 10%, transparent);
   color: var(--color-brand-primary);
   white-space: nowrap;
   pointer-events: none;
