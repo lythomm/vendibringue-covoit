@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/design.md": "^0.1.1",
     "@supabase/supabase-js": "^2.42.5",
     "canvas-confetti": "^1.9.4",
     "leaflet": "^1.9.4",
