@@ -2124,11 +2124,21 @@ onUnmounted(() => {
         <!-- Event Location & Navigation (Moved to bottom) -->
         <div class="px-6 py-4 bg-white border-t border-brand-outline/10">
           <div
-            class="flex items-center justify-between gap-4 p-4 bg-brand-on-surface/[0.03] rounded-[2rem] border border-brand-primary"
+            class="flex items-center justify-between gap-4 p-4 rounded-[2rem] border border-brand-primary/10"
+            :class="
+              currentRole === 'driver'
+                ? 'bg-[#4285F4]/20'
+                : 'bg-brand-primary/20'
+            "
           >
             <div class="flex flex-col min-w-0">
               <span
-                class="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-0.5"
+                class="text-[10px] font-black uppercase tracking-widest mb-0.5"
+                :class="
+                  currentRole === 'passenger'
+                    ? 'text-brand-primary'
+                    : 'text-[#4285F4]'
+                "
                 >Destination</span
               >
               <h3 class="font-black text-sm truncate uppercase">
@@ -2218,9 +2228,13 @@ onUnmounted(() => {
                 class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40"
                 >Description (Optionnel)</label
               >
-              <span 
-                class="text-[11px] font-black tracking-widest" 
-                :class="(newRide.description?.length || 0) >= 256 ? 'text-red-500' : 'text-brand-on-surface/40'"
+              <span
+                class="text-[11px] font-black tracking-widest"
+                :class="
+                  (newRide.description?.length || 0) >= 256
+                    ? 'text-red-500'
+                    : 'text-brand-on-surface/40'
+                "
               >
                 {{ newRide.description?.length || 0 }} / 256
               </span>
@@ -3368,7 +3382,10 @@ onUnmounted(() => {
 
             <div class="grid grid-cols-2 gap-4">
               <button
-                @click="openNavigation('waze'); showNavigationModal = false;"
+                @click="
+                  openNavigation('waze');
+                  showNavigationModal = false;
+                "
                 class="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border-2 border-brand-outline/10 bg-brand-surface hover:bg-brand-surface/80 active:scale-95 transition-all"
               >
                 <img
@@ -3379,7 +3396,10 @@ onUnmounted(() => {
                 <span class="font-bold text-sm">Waze</span>
               </button>
               <button
-                @click="openNavigation('google'); showNavigationModal = false;"
+                @click="
+                  openNavigation('google');
+                  showNavigationModal = false;
+                "
                 class="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border-2 border-brand-outline/10 bg-brand-surface hover:bg-brand-surface/80 active:scale-95 transition-all"
               >
                 <img
@@ -3390,12 +3410,17 @@ onUnmounted(() => {
                 <span class="font-bold text-sm">Google Maps</span>
               </button>
             </div>
-            
+
             <button
-              @click="copyCoordinates(); showNavigationModal = false;"
+              @click="
+                copyCoordinates();
+                showNavigationModal = false;
+              "
               class="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-on-surface/[0.03] text-brand-on-surface/70 font-bold active:scale-95 transition-all hover:bg-brand-on-surface/[0.06]"
             >
-              <span class="material-symbols-outlined text-[18px]">content_copy</span>
+              <span class="material-symbols-outlined text-[18px]"
+                >content_copy</span
+              >
               <span>Copier les coordonnées</span>
             </button>
           </div>
