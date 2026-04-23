@@ -82,6 +82,7 @@ const showRemoveParticipantConfirm = ref(false);
 const bookingToRemoveId = ref<string | null>(null);
 const isAvatarPickerOpen = ref(false);
 const avatarOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const showNavigationModal = ref(false);
 
 // PWA Installation
 const deferredPrompt = ref<any>(null);
@@ -558,27 +559,26 @@ function initMap() {
     className: "epicenter-marker-wrapper",
     html: `
       <div class="epicenter-pulse"></div>
+      <div class="epicenter-pulse delay"></div>
       <div class="epicenter-dot">
-        <svg viewBox="0 0 24 24" fill="currentColor" class="w-2.5 h-2.5 text-white">
-          <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001z" />
-        </svg>
+        <span style="font-size: 24px; line-height: 1;">🎉</span>
       </div>
       <div class="epicenter-label">
         Vendibringue 2026
       </div>
     `,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
+    iconSize: [60, 60],
+    iconAnchor: [30, 30],
   });
 
   epicenterMarker = L.marker([lat, lng], {
     icon: epicenterIcon,
     interactive: true,
-    zIndexOffset: -100,
+    zIndexOffset: 1000,
   }).addTo(map);
 
   epicenterMarker.on("click", () => {
-    copyCoordinates();
+    showNavigationModal.value = true;
     closeAllPanels();
   });
 
@@ -2124,7 +2124,7 @@ onUnmounted(() => {
         <!-- Event Location & Navigation (Moved to bottom) -->
         <div class="px-6 py-4 bg-white border-t border-brand-outline/10">
           <div
-            class="flex items-center justify-between gap-4 p-4 bg-brand-on-surface/[0.03] rounded-[2rem] border border-brand-outline/10"
+            class="flex items-center justify-between gap-4 p-4 bg-brand-on-surface/[0.03] rounded-[2rem] border border-brand-primary"
           >
             <div class="flex flex-col min-w-0">
               <span
@@ -2213,12 +2213,21 @@ onUnmounted(() => {
 
           <!-- Description Input -->
           <div class="mb-6">
-            <label
-              class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-3"
-              >Description (Optionnel)</label
-            >
+            <div class="flex items-center justify-between mb-3">
+              <label
+                class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40"
+                >Description (Optionnel)</label
+              >
+              <span 
+                class="text-[11px] font-black tracking-widest" 
+                :class="(newRide.description?.length || 0) >= 256 ? 'text-red-500' : 'text-brand-on-surface/40'"
+              >
+                {{ newRide.description?.length || 0 }} / 256
+              </span>
+            </div>
             <textarea
               v-model="newRide.description"
+              maxlength="256"
               placeholder="Ex: Musique à fond, petite pause prévue, ok pour les gros bagages..."
               rows="3"
               class="w-full p-4 bg-brand-on-surface/[0.03] border border-brand-outline/10 rounded-2xl font-bold text-base focus:ring-2 focus:ring-brand-primary/20 outline-none resize-none"
@@ -3324,6 +3333,91 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- Navigation Options Modal -->
+    <Transition
+      enter-active-class="transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+      enter-from-class="opacity-0 scale-95 translate-y-8"
+      enter-to-class="opacity-100 scale-100 translate-y-0"
+      leave-active-class="transition-all duration-200 ease-in"
+      leave-from-class="opacity-100 scale-100 translate-y-0"
+      leave-to-class="opacity-0 scale-95 translate-y-8"
+    >
+      <div
+        v-if="showNavigationModal"
+        class="fixed inset-0 z-[80] flex flex-col justify-end pointer-events-none"
+      >
+        <div class="p-4 pointer-events-auto w-full max-w-md mx-auto mb-20">
+          <div
+            class="bg-white rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-brand-outline/10 p-6"
+          >
+            <div class="flex justify-between items-center mb-6">
+              <div>
+                <h3 class="text-xl font-black">Aller à l'évènement</h3>
+                <p class="text-brand-on-surface/50 font-bold text-sm">
+                  {{ eventData.address }}
+                </p>
+              </div>
+              <button
+                @click="showNavigationModal = false"
+                class="w-10 h-10 rounded-full bg-brand-surface flex items-center justify-center text-brand-on-surface active:scale-95 transition-transform"
+              >
+                <span class="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <button
+                @click="openNavigation('waze'); showNavigationModal = false;"
+                class="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border-2 border-brand-outline/10 bg-brand-surface hover:bg-brand-surface/80 active:scale-95 transition-all"
+              >
+                <img
+                  src="https://img.icons8.com/color/48/waze.png"
+                  class="w-12 h-12"
+                  alt="Waze"
+                />
+                <span class="font-bold text-sm">Waze</span>
+              </button>
+              <button
+                @click="openNavigation('google'); showNavigationModal = false;"
+                class="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border-2 border-brand-outline/10 bg-brand-surface hover:bg-brand-surface/80 active:scale-95 transition-all"
+              >
+                <img
+                  src="https://img.icons8.com/color/48/google-maps-new.png"
+                  class="w-12 h-12"
+                  alt="Google Maps"
+                />
+                <span class="font-bold text-sm">Google Maps</span>
+              </button>
+            </div>
+            
+            <button
+              @click="copyCoordinates(); showNavigationModal = false;"
+              class="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-on-surface/[0.03] text-brand-on-surface/70 font-bold active:scale-95 transition-all hover:bg-brand-on-surface/[0.06]"
+            >
+              <span class="material-symbols-outlined text-[18px]">content_copy</span>
+              <span>Copier les coordonnées</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Overlay for Navigation Modal -->
+    <Transition
+      enter-active-class="transition-opacity duration-300"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-300"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showNavigationModal"
+        class="fixed inset-0 bg-black/40 z-[75] backdrop-blur-sm"
+        @click="showNavigationModal = false"
+      ></div>
+    </Transition>
   </div>
 </template>
 
@@ -3336,52 +3430,64 @@ onUnmounted(() => {
   display: flex !important;
   align-items: center;
   justify-content: center;
-  width: 40px !important;
-  height: 40px !important;
+  width: 60px !important;
+  height: 60px !important;
 }
 
 .epicenter-dot {
   position: absolute;
-  width: 24px;
-  height: 24px;
-  background: var(--color-brand-primary);
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #ff007a 0%, #7928ca 100%);
   border-radius: 50%;
-  border: 4px solid white;
-  box-shadow: 0 4px 15px
-    color-mix(in srgb, var(--color-brand-primary) 40%, transparent);
+  border: 3px solid white;
+  box-shadow:
+    0 0 20px rgba(255, 0, 122, 0.6),
+    0 0 40px rgba(121, 40, 202, 0.4);
   z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: epicenter-dot-bounce 2s ease-in-out infinite;
 }
 
 .epicenter-pulse {
   position: absolute;
-  width: 60px;
-  height: 60px;
-  background: color-mix(in srgb, var(--color-brand-primary) 20%, transparent);
+  width: 80px;
+  height: 80px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 0, 122, 0.4) 0%,
+    rgba(121, 40, 202, 0.1) 70%,
+    transparent 100%
+  );
   border-radius: 50%;
   animation: epicenter-heartbeat 2s ease-out infinite;
   z-index: 1;
 }
 
+.epicenter-pulse.delay {
+  animation-delay: 1s;
+}
+
 .epicenter-label {
   position: absolute;
-  top: 36px;
+  top: 50px;
   left: 50%;
   transform: translateX(-50%);
-  background: white;
-  padding: 4px 12px;
+  background: linear-gradient(135deg, #ff007a 0%, #7928ca 100%);
+  padding: 4px 10px;
   border-radius: 12px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  border: 1px solid
-    color-mix(in srgb, var(--color-brand-primary) 10%, transparent);
-  color: var(--color-brand-primary);
+  box-shadow: 0 4px 15px rgba(255, 0, 122, 0.4);
+  border: 1px solid white;
+  color: white;
   white-space: nowrap;
   pointer-events: none;
   z-index: 5;
+  text-transform: uppercase;
+  animation: epicenter-label-bounce 2s ease-in-out infinite;
 }
 
 /* Car Markers */
@@ -3438,8 +3544,28 @@ onUnmounted(() => {
     opacity: 1;
   }
   100% {
-    transform: scale(1.5);
+    transform: scale(1.8);
     opacity: 0;
+  }
+}
+
+@keyframes epicenter-dot-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes epicenter-label-bounce {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, -5px);
   }
 }
 
