@@ -51,9 +51,7 @@ const loadingRides = ref(true);
 
 // Navigation & Role
 const currentTab = ref("explorer"); // 'explorer', 'trips', 'messages', 'profile'
-const currentRole = ref<"passenger" | "driver">(
-  (localStorage.getItem("vb_role") as "passenger" | "driver") || "passenger",
-);
+const currentRole = ref<"passenger" | "driver">("passenger");
 
 // Picking mode
 const isPickingLocation = ref(false);
@@ -298,9 +296,6 @@ function openNavigation(app: "waze" | "google") {
   }
 }
 
-watch(currentRole, (role) => {
-  localStorage.setItem("vb_role", role);
-});
 
 // Search Logic
 function onSearchFocus() {
