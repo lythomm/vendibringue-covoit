@@ -70,6 +70,7 @@ const editedProfile = ref({
   instagram_id: "",
 });
 const successSheetActive = ref(false);
+const successButtonTimer = ref(0);
 const bookingError = ref<string | null>(null);
 const userCoords = ref<{ lat: number; lng: number } | null>(null);
 const showCancelConfirm = ref(false);
@@ -435,6 +436,25 @@ watch(
   },
   { deep: false },
 );
+
+let successTimerInterval: any = null;
+watch(successSheetActive, (active) => {
+  if (successTimerInterval) clearInterval(successTimerInterval);
+
+  if (active) {
+    successButtonTimer.value = 7;
+    successTimerInterval = setInterval(() => {
+      if (successButtonTimer.value > 0) {
+        successButtonTimer.value--;
+      } else {
+        clearInterval(successTimerInterval);
+        successTimerInterval = null;
+      }
+    }, 1000);
+  } else {
+    successButtonTimer.value = 0;
+  }
+});
 
 function getBookedCount(ride: any) {
   if (!ride) return 0;
@@ -3112,9 +3132,18 @@ onUnmounted(() => {
 
           <button
             @click="successSheetActive = false"
-            class="w-full py-4 bg-brand-on-surface text-white font-black text-lg rounded-2xl active:scale-95 transition-all"
+            :disabled="successButtonTimer > 0"
+            class="w-full py-4 font-black text-lg rounded-2xl active:scale-95 transition-all"
+            :class="
+              successButtonTimer > 0
+                ? 'bg-brand-on-surface/10 text-brand-on-surface/30 cursor-not-allowed'
+                : 'bg-brand-on-surface text-white'
+            "
           >
-            Trop cool
+            <template v-if="successButtonTimer > 0">
+              Attends encore {{ successButtonTimer }}s...
+            </template>
+            <template v-else> C'est fait ! </template>
           </button>
         </div>
       </section>
