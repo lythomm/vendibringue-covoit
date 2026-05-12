@@ -98,6 +98,10 @@ const dragStartY = ref(0);
 const dragTranslateY = ref(0);
 const isDragging = ref(false);
 const activeDraggingSheet = ref<string | null>(null);
+const searchQuery = ref("");
+const searchResults = ref<any[]>([]);
+const isSearching = ref(false);
+const isSearchFocused = ref(false);
 
 function onSheetDragStart(e: TouchEvent, sheetId: string) {
   dragStartY.value = e.touches[0].clientY;
@@ -297,6 +301,60 @@ function openNavigation(app: "waze" | "google") {
 watch(currentRole, (role) => {
   localStorage.setItem("vb_role", role);
 });
+
+// Search Logic
+function onSearchFocus() {
+  isSearchFocused.value = true;
+}
+
+function onSearchBlur() {
+  setTimeout(() => {
+    isSearchFocused.value = false;
+  }, 200);
+}
+
+let searchTimeout: any = null;
+function searchAddressDebounced() {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    searchAddress();
+  }, 400);
+}
+
+async function searchAddress() {
+  if (searchQuery.value.length < 3) {
+    searchResults.value = [];
+    return;
+  }
+  isSearching.value = true;
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        searchQuery.value,
+      )}&limit=5&addressdetails=1`,
+      {
+        headers: { "Accept-Language": "fr" },
+      },
+    );
+    searchResults.value = await response.json();
+  } catch (error) {
+    console.error("Search failed:", error);
+  } finally {
+    isSearching.value = false;
+  }
+}
+
+function selectSearchResult(result: any) {
+  if (!map) return;
+  const lat = parseFloat(result.lat);
+  const lon = parseFloat(result.lon);
+  // Smooth flyTo animation
+  map.flyTo([lat, lon], 16, {
+    duration: 1.5,
+  });
+  searchQuery.value = "";
+  searchResults.value = [];
+}
 
 // ==========================================
 // === 2. COMPUTED PROPERTIES ===
@@ -952,6 +1010,9 @@ function cancelPicking() {
   isPickingLocation.value = false;
   pickingSheetActive.value = false;
   isSheetMinimized.value = false;
+  // Reset search state
+  searchQuery.value = "";
+  searchResults.value = [];
 }
 
 async function confirmLocation() {
@@ -964,6 +1025,9 @@ async function confirmLocation() {
 
   isPickingLocation.value = false;
   pickingSheetActive.value = true;
+  // Reset search state
+  searchQuery.value = "";
+  searchResults.value = [];
 
   try {
     const response = await fetch(
@@ -1300,9 +1364,17 @@ function dismissInstallBanner() {
 
 function locateMe() {
   if (!map) return;
-  map.locate({ setView: true, maxZoom: 15 });
+  // Use setView: false and handle the transition manually for a smooth "flyTo" effect
+  map.locate({ setView: false, maxZoom: 15 });
   map.once("locationfound", (e) => {
     userCoords.value = { lat: e.latlng.lat, lng: e.latlng.lng };
+    
+    // Smooth transition to user position
+    map.flyTo(e.latlng, 16, {
+      duration: 1.5,
+      easeLinearity: 0.25
+    });
+
     if (userMarker) {
       userMarker.setLatLng(e.latlng);
     } else {
@@ -1613,6 +1685,98 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- Search Bar (Address Picking) -->
+    <div
+      v-if="isPickingLocation"
+      class="fixed top-24 inset-x-0 z-[60] px-6 animate-in slide-in-from-top-5 pointer-events-none"
+    >
+      <div class="max-w-md mx-auto relative pointer-events-auto">
+        <div class="relative group">
+          <span
+            class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-brand-on-surface/30 group-focus-within:text-brand-primary transition-colors"
+            >search</span
+          >
+          <input
+            v-model="searchQuery"
+            @input="searchAddressDebounced"
+            @focus="onSearchFocus"
+            @blur="onSearchBlur"
+            type="text"
+            placeholder="Tape une adresse ou une ville..."
+            class="w-full h-14 pl-12 pr-10 bg-white border border-brand-outline/20 rounded-2xl shadow-2xl shadow-black/5 outline-none focus:ring-2 focus:ring-brand-primary/10 transition-all font-bold"
+          />
+          <button
+            v-if="searchQuery"
+            @click="
+              searchQuery = '';
+              searchResults = [];
+            "
+            class="absolute right-4 top-1/2 -translate-y-1/2 text-brand-on-surface/30 hover:text-brand-on-surface"
+          >
+            <span
+              v-if="isSearching"
+              class="material-symbols-outlined text-[20px] animate-spin"
+              >sync</span
+            >
+            <span v-else class="material-symbols-outlined text-[20px]"
+              >close</span
+            >
+          </button>
+        </div>
+
+        <!-- Search Results Dropdown -->
+        <div
+          v-if="isSearchFocused || searchResults.length > 0"
+          class="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-brand-outline/10 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2"
+        >
+          <!-- User Location Suggestion -->
+          <button
+            @click="
+              locateMe();
+              searchQuery = '';
+              searchResults = [];
+            "
+            :class="[
+              'w-full px-5 py-4 text-left hover:bg-brand-on-surface/[0.03] transition-colors flex items-center gap-4',
+              searchResults.length > 0 ? 'border-b border-brand-outline/5' : '',
+            ]"
+          >
+            <span class="material-symbols-outlined text-brand-primary"
+              >my_location</span
+            >
+            <div class="flex-1 min-w-0 text-left">
+              <p class="font-bold text-brand-primary">Ma position actuelle</p>
+              <p
+                class="text-[10px] font-black text-brand-primary/40 truncate uppercase tracking-widest mt-0.5"
+              >
+                Utiliser ma géolocalisation
+              </p>
+            </div>
+          </button>
+          <button
+            v-for="res in searchResults"
+            :key="res.place_id"
+            @click="selectSearchResult(res)"
+            class="w-full px-5 py-4 text-left hover:bg-brand-on-surface/[0.03] transition-colors flex items-center gap-4 border-b border-brand-outline/5 last:border-0"
+          >
+            <span class="material-symbols-outlined text-brand-on-surface/20"
+              >location_on</span
+            >
+            <div class="flex-1 min-w-0 text-left">
+              <p class="font-bold text-brand-on-surface truncate">
+                {{ res.display_name.split(",")[0] }}
+              </p>
+              <p
+                class="text-[10px] font-black text-brand-on-surface/40 truncate uppercase tracking-widest mt-0.5"
+              >
+                {{ res.display_name.split(",").slice(1).join(",").trim() }}
+              </p>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Confirm Location Button -->
     <div
       v-if="isPickingLocation"
@@ -1635,20 +1799,16 @@ onUnmounted(() => {
     </div>
 
     <!-- Map Tools -->
-    <div class="fixed top-24 right-5 flex flex-col gap-3 z-10">
+    <div
+      v-if="!isPickingLocation"
+      class="fixed top-24 right-5 flex flex-col gap-3 z-10"
+    >
       <button
         @click="recenter"
         class="w-11 h-11 bg-brand-primary text-white border border-brand-primary/20 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all"
         title="Centrer sur la fête"
       >
         <span class="material-symbols-outlined text-[20px]">location_on</span>
-      </button>
-      <button
-        @click="locateMe"
-        class="w-11 h-11 bg-white border border-brand-outline/30 rounded-full flex items-center justify-center text-brand-on-surface shadow-xl active:scale-95 transition-all"
-        title="Ma position"
-      >
-        <span class="material-symbols-outlined text-[20px]">my_location</span>
       </button>
     </div>
 
@@ -1941,7 +2101,7 @@ onUnmounted(() => {
                   </svg>
                 </div>
                 <p class="text-brand-on-surface/40 font-bold">
-                  Aucun trajet pour le moment
+                  Aucun covoiturage en vu 😥
                 </p>
               </div>
             </div>
@@ -2102,9 +2262,6 @@ onUnmounted(() => {
                   >directions_car</span
                 >
               </div>
-              <h3 class="text-xl font-bold text-brand-on-surface mb-2">
-                Pas encore de covoit proposé
-              </h3>
               <p
                 class="text-sm text-brand-on-surface/50 max-w-[280px] mx-auto mb-8"
               >
