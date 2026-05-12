@@ -35,6 +35,13 @@ const handlePinInput = (index: number, event: Event) => {
     nextTick(() => {
       pinInputs.value[index + 1].focus();
     });
+  } else if (pinDigits.value[index] && index === 3) {
+    // Auto-trigger login when the 4th digit is entered
+    nextTick(() => {
+      if (isFormValid.value) {
+        handleAuth();
+      }
+    });
   }
 };
 
