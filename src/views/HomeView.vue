@@ -1366,21 +1366,25 @@ function locateMe() {
     userCoords.value = { lat: e.latlng.lat, lng: e.latlng.lng };
 
     // Smooth transition to user position
-    map.flyTo(e.latlng, 16, {
-      duration: 1.5,
-      easeLinearity: 0.25,
-    });
+    if (map) {
+      map.flyTo(e.latlng, 16, {
+        duration: 1.5,
+        easeLinearity: 0.25,
+      });
+    }
 
     if (userMarker) {
       userMarker.setLatLng(e.latlng);
     } else {
-      userMarker = L.circleMarker(e.latlng, {
-        radius: 8,
-        color: "#fff",
-        weight: 3,
-        fillColor: "#4285F4",
-        fillOpacity: 1,
-      }).addTo(map!);
+      if (map) {
+        userMarker = L.circleMarker(e.latlng, {
+          radius: 8,
+          color: "#fff",
+          weight: 3,
+          fillColor: "#4285F4",
+          fillOpacity: 1,
+        }).addTo(map);
+      }
     }
   });
 }
