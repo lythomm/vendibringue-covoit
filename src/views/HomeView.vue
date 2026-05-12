@@ -296,7 +296,6 @@ function openNavigation(app: "waze" | "google") {
   }
 }
 
-
 // Search Logic
 function onSearchFocus() {
   isSearchFocused.value = true;
@@ -967,7 +966,7 @@ async function changeAvatar(index: number) {
   }
 }
 
-function getWhatsAppLink(phone: string) {
+function getWhatsAppLink(phone: string, text?: string) {
   // Remove spaces and +
   const clean = phone.replace(/[^0-9]/g, "");
   // If starts with 0 and 10 digits, assume FR (+33)
@@ -975,7 +974,9 @@ function getWhatsAppLink(phone: string) {
     clean.length === 10 && clean.startsWith("0")
       ? "33" + clean.slice(1)
       : clean;
-  return `https://wa.me/${formatted}`;
+
+  const url = `https://wa.me/${formatted}`;
+  return text ? `${url}?text=${encodeURIComponent(text)}` : url;
 }
 
 function startPicking() {
@@ -1363,11 +1364,11 @@ function locateMe() {
   map.locate({ setView: false, maxZoom: 15 });
   map.once("locationfound", (e) => {
     userCoords.value = { lat: e.latlng.lat, lng: e.latlng.lng };
-    
+
     // Smooth transition to user position
     map.flyTo(e.latlng, 16, {
       duration: 1.5,
-      easeLinearity: 0.25
+      easeLinearity: 0.25,
     });
 
     if (userMarker) {
@@ -1941,7 +1942,7 @@ onUnmounted(() => {
                     <div class="relative flex-shrink-0">
                       <div
                         v-if="isPassenger(ride.id)"
-                        class="w-16 h-16 rounded-[1.5rem] bg-[#4285F4] text-white flex items-center justify-center shadow-lg shadow-[#4285F4]/20"
+                        class="size-12 rounded-[1.5rem] bg-[#4285F4] text-white flex items-center justify-center shadow-lg shadow-[#4285F4]/20"
                       >
                         <span class="material-symbols-outlined text-2xl"
                           >directions_car</span
@@ -1949,7 +1950,7 @@ onUnmounted(() => {
                       </div>
                       <div
                         v-else
-                        class="w-16 h-16 rounded-full bg-brand-primary/5 flex items-center justify-center border border-brand-outline/20 overflow-hidden group-hover:border-brand-primary/30 transition-colors"
+                        class="size-12 rounded-full bg-brand-primary/5 flex items-center justify-center border border-brand-outline/20 overflow-hidden group-hover:border-brand-primary/30 transition-colors"
                       >
                         <img
                           v-if="ride.profiles?.avatar_url"
@@ -2017,7 +2018,7 @@ onUnmounted(() => {
                         :class="isPassenger(ride.id) && 'mb-3'"
                       >
                         <span
-                          class="text-sm font-bold"
+                          class="text-sm font-bold text-nowrap"
                           :class="
                             getSeatsLeft(ride) <= 0
                               ? 'text-brand-error'
@@ -3035,21 +3036,31 @@ onUnmounted(() => {
             >
           </div>
           <h2 class="text-2xl font-black mb-2">C'est réservé !</h2>
-          <p class="text-brand-on-surface/50 font-bold mb-8">
-            Tu as ta place pour la VendiBringue. Prépare tes chaussures de danse
-            !
+          <p class="text-brand-on-surface/60 font-bold mb-8">
+            Ta place est bloquée, mais attention : <br />
+            <span class="text-brand-primary font-black text-lg block mt-1"
+              >aucun message n'est envoyé automatiquement.</span
+            >
           </p>
 
-          <div v-if="lastBookedRide" class="mb-10">
-            <p
-              class="text-[10px] font-black uppercase text-brand-on-surface/40 mb-4"
-            >
-              Contacter {{ lastBookedRide.profiles?.first_name }}
+          <div
+            v-if="lastBookedRide"
+            class="mb-10 bg-brand-primary/5 p-6 rounded-3xl border border-brand-primary/10"
+          >
+            <p class="text-[11px] font-bold uppercase text-brand-primary mb-5">
+              Contacte
+              {{ lastBookedRide.profiles?.first_name }}
+              maintenant pour confirmer ta place :
             </p>
             <div class="flex items-center justify-center gap-4">
               <a
                 v-if="lastBookedRide.profiles?.phone"
-                :href="getWhatsAppLink(lastBookedRide.profiles.phone)"
+                :href="
+                  getWhatsAppLink(
+                    lastBookedRide.profiles.phone,
+                    `Salut ${lastBookedRide.profiles?.first_name}, moi c'est ${auth.user?.first_name} ! Je viens de réserver une place dans ton covoit pour la Vendi'bringue via l'app :)`,
+                  )
+                "
                 target="_blank"
                 class="w-14 h-14 bg-white border border-brand-outline/10 rounded-2xl flex items-center justify-center shadow-lg shadow-green-500/10 active:scale-95 transition-all"
                 title="WhatsApp"
@@ -3062,7 +3073,15 @@ onUnmounted(() => {
               </a>
               <a
                 v-if="lastBookedRide.profiles?.phone"
-                :href="'sms:' + lastBookedRide.profiles.phone"
+                :href="
+                  'sms:' +
+                  lastBookedRide.profiles.phone +
+                  (isIOS ? '&' : '?') +
+                  'body=' +
+                  encodeURIComponent(
+                    `Salut ${lastBookedRide.profiles?.first_name}, moi c'est ${auth.user?.first_name} ! Je viens de réserver une place dans ton covoit pour la Vendi'bringue via l'app :)`,
+                  )
+                "
                 class="w-14 h-14 bg-white border border-brand-outline/10 rounded-2xl flex items-center justify-center text-brand-on-surface shadow-lg active:scale-95 transition-all"
                 title="Envoyer un SMS"
               >
