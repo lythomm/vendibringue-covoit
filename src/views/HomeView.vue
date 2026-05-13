@@ -3463,7 +3463,7 @@ function triggerConfetti() {
                   class="text-[12px] font-bold text-brand-on-surface/40 leading-snug"
                 >
                   Fais défiler les options et clique sur le "+". Et paf, c'est
-                  installé !
+                  ajouté !
                 </p>
               </div>
             </div>
@@ -3518,7 +3518,7 @@ function triggerConfetti() {
 
           <h2 class="text-2xl font-black text-center mb-2">Sur ton Android</h2>
           <p class="text-center text-brand-on-surface/50 font-bold mb-8">
-            Installe VendiCovoit via le menu :
+            Ajoute VendiCovoit via le menu :
           </p>
 
           <div class="space-y-6 mb-10">
@@ -3560,8 +3560,8 @@ function triggerConfetti() {
                 <p
                   class="text-[12px] font-bold text-brand-on-surface/40 leading-snug"
                 >
-                  Cherche "Installer l'application" ou "Ajouter à l'écran
-                  d'accueil" dans le menu de ton navigateur.
+                  Cherche "Ajouter à l'écran d'accueil" dans le menu de ton
+                  navigateur.
                 </p>
               </div>
             </div>
