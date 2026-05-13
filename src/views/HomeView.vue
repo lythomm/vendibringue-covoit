@@ -70,6 +70,7 @@ const editedProfile = ref({
   instagram_id: "",
 });
 const successSheetActive = ref(false);
+const successType = ref<"booking" | "ride_creation">("booking");
 const successButtonTimer = ref(0);
 const bookingError = ref<string | null>(null);
 const userCoords = ref<{ lat: number; lng: number } | null>(null);
@@ -442,7 +443,7 @@ watch(successSheetActive, (active) => {
   if (successTimerInterval) clearInterval(successTimerInterval);
 
   if (active) {
-    successButtonTimer.value = 7;
+    successButtonTimer.value = 5;
     successTimerInterval = setInterval(() => {
       if (successButtonTimer.value > 0) {
         successButtonTimer.value--;
@@ -1121,10 +1122,17 @@ async function submitRide() {
       alert("Erreur : " + error.message);
     }
   } else {
+    // Success UI for driver (only for new rides)
+    if (!isEditing.value) {
+      successType.value = "ride_creation";
+      successSheetActive.value = true;
+      triggerConfetti();
+    }
+
     pickingSheetActive.value = false;
     isEditing.value = false;
     editingRideId.value = null;
-    currentRole.value = "driver"; // just in case
+    currentRole.value = "driver";
   }
 }
 
@@ -1268,33 +1276,11 @@ async function confirmBooking(rideId: string) {
 
     // Save info for success screen
     lastBookedRide.value = rides.value.find((r: any) => r.id === rideId);
+    successType.value = "booking";
     successSheetActive.value = true;
 
     // DELICIOUS CONFETTI
-    const duration = 1 * 1000;
-    const end = Date.now() + duration;
-
-    const frame = () => {
-      confetti({
-        particleCount: 2,
-        angle: 60,
-        spread: 75,
-        origin: { x: 0, y: 0.8 },
-        colors: ["#ff4b4b", "#ff9f43", "#feca57"], // Red, Orange, Yellow
-      });
-      confetti({
-        particleCount: 2,
-        angle: 120,
-        spread: 75,
-        origin: { x: 1, y: 0.8 },
-        colors: ["#ff4b4b", "#ff9f43", "#feca57"],
-      });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
-    };
-    frame();
+    triggerConfetti();
   } catch (err: any) {
     console.error("Booking failed:", err);
     alert("Erreur lors de la réservation : " + err.message);
@@ -1499,6 +1485,33 @@ onUnmounted(() => {
     supabase.removeChannel(realtimeChannel);
   }
 });
+
+function triggerConfetti() {
+  const duration = 1.5 * 1000;
+  const end = Date.now() + duration;
+
+  const frame = () => {
+    confetti({
+      particleCount: 3,
+      angle: 60,
+      spread: 75,
+      origin: { x: 0, y: 0.8 },
+      colors: ["#ff4b4b", "#ff9f43", "#feca57", "#4285F4"],
+    });
+    confetti({
+      particleCount: 3,
+      angle: 120,
+      spread: 75,
+      origin: { x: 1, y: 0.8 },
+      colors: ["#ff4b4b", "#ff9f43", "#feca57", "#4285F4"],
+    });
+
+    if (Date.now() < end) {
+      requestAnimationFrame(frame);
+    }
+  };
+  frame();
+}
 </script>
 
 <!-- ========================================== -->
@@ -1820,15 +1833,15 @@ onUnmounted(() => {
 
     <!-- Map Tools -->
     <div
-      v-if="!isPickingLocation"
-      class="fixed top-24 right-5 flex flex-col gap-3 z-10"
+      v-if="!isPickingLocation && !pickingSheetActive"
+      class="fixed bottom-[calc(40px+1.5rem)] right-5 flex flex-col gap-3 z-30 pointer-events-none"
     >
       <button
         @click="recenter"
-        class="w-11 h-11 bg-brand-primary text-white border border-brand-primary/20 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all"
+        class="w-12 h-12 bg-white text-brand-primary border border-brand-outline/20 rounded-2xl flex items-center justify-center shadow-2xl active:scale-95 transition-all pointer-events-auto"
         title="Centrer sur la fête"
       >
-        <span class="material-symbols-outlined text-[20px]">location_on</span>
+        <span class="material-symbols-outlined text-[24px]">location_on</span>
       </button>
     </div>
 
@@ -2758,19 +2771,14 @@ onUnmounted(() => {
               v-else-if="isPassenger(selectedRide.id)"
               @click="promptCancelBooking(selectedRide.id)"
               :disabled="bookingLoading"
-              class="flex-[3] py-4 bg-red-50 text-brand-error font-bold text-lg rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border border-brand-error/10"
+              class="flex-[3] py-4 bg-brand-error text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border border-brand-error/10"
             >
               <span
                 v-if="bookingLoading"
                 class="material-symbols-outlined animate-spin"
                 >refresh</span
               >
-              <template v-else>
-                <span class="material-symbols-outlined !text-[20px]"
-                  >cancel</span
-                >
-                Libérer ma place
-              </template>
+              <template v-else> Libérer ma place </template>
             </button>
           </div>
         </div>
@@ -3059,16 +3067,29 @@ onUnmounted(() => {
               >check_circle</span
             >
           </div>
-          <h2 class="text-2xl font-black mb-2">C'est réservé !</h2>
+          <h2 class="text-2xl font-black mb-2">
+            {{
+              successType === "booking" ? "C'est réservé !" : "C'est en ligne !"
+            }}
+          </h2>
           <p class="text-brand-on-surface/60 font-bold mb-8">
-            Ta place est bloquée, mais attention : <br />
-            <span class="text-brand-primary font-black text-lg block mt-1"
-              >aucun message n'est envoyé automatiquement.</span
-            >
+            <template v-if="successType === 'booking'">
+              Ta place est bloquée, mais attention : <br />
+              <span class="text-brand-primary font-black text-lg block mt-1"
+                >aucun message n'est envoyé automatiquement.</span
+              >
+            </template>
+            <template v-else>
+              Merci beaucoup de proposer ton aide pour ramener du monde à la
+              soirée ! <br />
+              <span class="text-brand-primary font-black text-lg block mt-1"
+                >On t'aime déjà. ❤️</span
+              >
+            </template>
           </p>
 
           <div
-            v-if="lastBookedRide"
+            v-if="successType === 'booking' && lastBookedRide"
             class="mb-10 bg-brand-primary/5 p-6 rounded-3xl border border-brand-primary/10"
           >
             <p class="text-[11px] font-bold uppercase text-brand-primary mb-5">
@@ -3143,7 +3164,11 @@ onUnmounted(() => {
             <template v-if="successButtonTimer > 0">
               Attends encore {{ successButtonTimer }}s...
             </template>
-            <template v-else> C'est fait ! </template>
+            <template v-else>
+              {{
+                successType === "booking" ? "C'est fait !" : "Avec plaisir !"
+              }}
+            </template>
           </button>
         </div>
       </section>
