@@ -1565,11 +1565,11 @@ function triggerConfetti() {
             </div>
             <div>
               <p class="text-sm font-black leading-tight mb-1">
-                Garde VendiCovoit sous la main !
+                Expérience Mobile Native
               </p>
               <p class="text-[11px] font-bold text-white/80 leading-snug">
-                Installe l'app sur ton écran d'accueil pour un accès
-                ultra-rapide et ne rater aucune place.
+                Ajoute l'app sur ton écran d'accueil. C'est plus fluide, plus
+                rapide, et ça ressemble à une vraie app (sans passer par les stores) !
               </p>
             </div>
             <button
@@ -1583,7 +1583,7 @@ function triggerConfetti() {
             @click="installApp"
             class="w-full py-3 bg-white text-[#4285F4] font-black text-sm rounded-xl active:scale-95 transition-all shadow-lg"
           >
-            Installer maintenant
+            C'est parti !
           </button>
         </div>
       </div>
@@ -2942,9 +2942,9 @@ function triggerConfetti() {
               class="w-full py-4 mb-4 bg-brand-on-surface text-brand-surface font-black text-[15px] rounded-[24px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
             >
               <span class="material-symbols-outlined !text-[20px] font-bold"
-                >mobile_friendly</span
+                >add_to_home_screen</span
               >
-              Installer l'application
+              Ajouter à l'écran d'accueil
             </button>
 
             <!-- Logout Button -->
@@ -3419,7 +3419,7 @@ function triggerConfetti() {
 
           <h2 class="text-2xl font-black text-center mb-2">Sur ton iPhone</h2>
           <p class="text-center text-brand-on-surface/50 font-bold mb-8">
-            Installe VendiCovoit en 2 étapes rapides :
+            Ajoute VendiCovoit en 2 étapes rapides :
           </p>
 
           <div class="space-y-6 mb-10">
@@ -3555,13 +3555,13 @@ function triggerConfetti() {
                   <span class="material-symbols-outlined text-[18px]"
                     >add_to_home_screen</span
                   >
-                  Installer l'app
+                  Ajouter l'app
                 </p>
                 <p
                   class="text-[12px] font-bold text-brand-on-surface/40 leading-snug"
                 >
                   Cherche "Installer l'application" ou "Ajouter à l'écran
-                  d'accueil".
+                  d'accueil" dans le menu de ton navigateur.
                 </p>
               </div>
             </div>
