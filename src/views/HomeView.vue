@@ -327,7 +327,7 @@ async function searchAddress() {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
         searchQuery.value,
-      )}&limit=5&addressdetails=1`,
+      )}&limit=5&addressdetails=1&countrycodes=fr`,
       {
         headers: { "Accept-Language": "fr" },
       },
