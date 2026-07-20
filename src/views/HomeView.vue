@@ -38,12 +38,14 @@ const eventData = ref<{
   center_lat: number;
   center_lng: number;
   address: string | null;
+  starts_at?: string | null;
 }>({
   id: "ec06065d-6e1c-4775-b843-1e9c2195142f",
   name: "Vendibringue",
   center_lat: 43.51871479457044,
   center_lng: 1.8295761830409003,
   address: "Vendibringue, France",
+  starts_at: "2026-07-25T00:00:00.000Z",
 });
 
 const rides = ref<any[]>([]);
@@ -198,10 +200,81 @@ function showBookingError(message: string) {
   }, 5000);
 }
 
+// Date Helpers & Filters
+const selectedDateFilter = ref<string>("all");
+
+function formatDateOnly(iso: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatRideDay(iso: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+  const monthNames = ["janv.", "févr.", "mars", "avril", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  return `${dayNames[d.getDay()]}. ${d.getDate()} ${monthNames[d.getMonth()]}`;
+}
+
+const availableDepartureDates = computed(() => {
+  let baseDate = new Date();
+  if (eventData.value?.starts_at) {
+    const parsed = new Date(eventData.value.starts_at);
+    if (!isNaN(parsed.getTime())) {
+      baseDate = parsed;
+    }
+  }
+
+  const days = [];
+  const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+  const dayFullNames = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+  const monthNames = ["janv.", "févr.", "mars", "avril", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+  for (let offset = -3; offset <= 0; offset++) {
+    const d = new Date(baseDate);
+    d.setDate(d.getDate() + offset);
+
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+
+    const dayName = dayNames[d.getDay()];
+    const dayFullName = dayFullNames[d.getDay()];
+    const dayNum = d.getDate();
+    const monthName = monthNames[d.getMonth()];
+
+    let label = `${dayFullName} ${dayNum} ${monthName}`;
+    let shortLabel = `${dayName}. ${dayNum}`;
+    if (offset === 0) {
+      label += " (Jour J)";
+      shortLabel += " (Jour J)";
+    }
+
+    days.push({
+      offset,
+      dateStr,
+      dateObj: d,
+      label,
+      shortLabel,
+      isJourJ: offset === 0,
+    });
+  }
+
+  return days;
+});
+
 // Ride Form Data
 const newRide = ref({
   origin_name: "",
   total_seats: 3,
+  departure_day: "",
   departure_time: "20:00",
   description: "",
 });
@@ -371,6 +444,10 @@ const availableRides = computed(() => {
   const list = rides.value.filter((r) => {
     if (r.status !== "active") return false;
     if (auth.user && r.driver_id === auth.user.id) return false;
+    if (selectedDateFilter.value !== "all") {
+      const rideDate = formatDateOnly(r.departure_time);
+      if (rideDate !== selectedDateFilter.value) return false;
+    }
     return true;
   });
 
@@ -512,12 +589,16 @@ async function fetchEventData() {
   fetchError.value = null;
 
   try {
-    // Simplifying to avoid PostgREST 406 by requesting all columns first
-    const { data, error } = await supabase
-      .from("events")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
+    let query = supabase.from("events").select("*");
+    if (auth.event?.id) {
+      query = query.eq("id", auth.event.id);
+    } else if (auth.event?.code) {
+      query = query.eq("code", auth.event.code);
+    } else {
+      query = query.eq("code", "BRINGUE2026");
+    }
+
+    const { data, error } = await query.limit(1).maybeSingle();
 
     if (error) throw error;
     if (data) {
@@ -527,6 +608,7 @@ async function fetchEventData() {
         center_lat: data.center_lat,
         center_lng: data.center_lng,
         address: data.address,
+        starts_at: data.starts_at || "2026-07-25T00:00:00.000Z",
       };
     }
   } catch (err: any) {
@@ -1016,6 +1098,8 @@ function startPicking() {
   newRide.value.origin_name = "";
   newRide.value.total_seats = 3;
   newRide.value.departure_time = "20:00";
+  const defaultDay = availableDepartureDates.value.find((d) => d.isJourJ)?.dateStr || availableDepartureDates.value[availableDepartureDates.value.length - 1]?.dateStr || "";
+  newRide.value.departure_day = defaultDay;
   isEditing.value = false;
   editingRideId.value = null;
 
@@ -1086,11 +1170,15 @@ async function submitRide() {
     return;
   }
 
-  // Create an ISO string for today + selected time (handling local timezone)
+  // Create an ISO string for chosen day + chosen time (handling local timezone)
   const [hours, minutes] = newRide.value.departure_time.split(":").map(Number);
-  const departureDate = new Date();
-  departureDate.setHours(hours, minutes, 0, 0);
-  const departureStr = departureDate.toISOString();
+  let targetDate = new Date();
+  if (newRide.value.departure_day) {
+    const [yyyy, mm, dd] = newRide.value.departure_day.split("-").map(Number);
+    targetDate = new Date(yyyy, mm - 1, dd);
+  }
+  targetDate.setHours(hours, minutes, 0, 0);
+  const departureStr = targetDate.toISOString();
 
   const rideData = {
     event_id: eventData.value.id,
@@ -1164,6 +1252,7 @@ function editRide(ride: any) {
   newRide.value = {
     origin_name: ride.origin_name,
     total_seats: ride.total_seats,
+    departure_day: formatDateOnly(ride.departure_time),
     departure_time: formatTimeOnly(ride.departure_time),
     description: ride.description || "",
   };
@@ -1433,9 +1522,9 @@ function formatTime(iso: string) {
 // ==========================================
 // === 7. VUE LIFECYCLE ===
 // ==========================================
-// Watch for rides changes to update markers
+// Watch for ridesMarkerData changes to update markers
 watch(
-  rides,
+  ridesMarkerData,
   () => {
     updateMarkers();
   },
@@ -1952,6 +2041,34 @@ function triggerConfetti() {
 
           <!-- Passenger List -->
           <template v-if="currentRole === 'passenger'">
+            <!-- Date Filter Chips -->
+            <div class="mb-5 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+              <button
+                @click="selectedDateFilter = 'all'"
+                :class="[
+                  'px-3.5 py-2 rounded-full text-xs font-black tracking-wide whitespace-nowrap transition-all active:scale-95',
+                  selectedDateFilter === 'all'
+                    ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20 scale-[1.02]'
+                    : 'bg-brand-on-surface/[0.04] text-brand-on-surface/60 hover:bg-brand-on-surface/10'
+                ]"
+              >
+                Tous les jours
+              </button>
+              <button
+                v-for="d in availableDepartureDates"
+                :key="d.dateStr"
+                @click="selectedDateFilter = d.dateStr"
+                :class="[
+                  'px-3.5 py-2 rounded-full text-xs font-black tracking-wide whitespace-nowrap transition-all active:scale-95',
+                  selectedDateFilter === d.dateStr
+                    ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20 scale-[1.02]'
+                    : 'bg-brand-on-surface/[0.04] text-brand-on-surface/60 hover:bg-brand-on-surface/10'
+                ]"
+              >
+                {{ d.shortLabel }}
+              </button>
+            </div>
+
             <div v-if="loadingRides" class="py-12 flex justify-center">
               <div
                 class="w-8 h-8 border-4 border-brand-primary/20 border-t-brand-primary rounded-full animate-spin"
@@ -2039,9 +2156,11 @@ function triggerConfetti() {
                           </span>
                           <span
                             v-if="!isPassenger(ride.id)"
-                            class="text-brand-primary font-black text-lg"
+                            class="text-brand-primary font-black text-sm sm:text-base flex items-center gap-1.5"
                           >
-                            {{ formatTime(ride.departure_time) }}
+                            <span class="text-brand-on-surface/50 font-bold text-xs">{{ formatRideDay(ride.departure_time) }}</span>
+                            <span>•</span>
+                            <span>{{ formatTime(ride.departure_time) }}</span>
                           </span>
                           <span
                             v-if="isPassenger(ride.id)"
@@ -2468,18 +2587,43 @@ function triggerConfetti() {
               </div>
             </div>
 
-            <!-- Time Picker -->
-            <div>
-              <label
-                class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-3"
-                >Heure du départ</label
-              >
-              <div class="relative">
-                <input
-                  v-model="newRide.departure_time"
-                  type="time"
-                  class="w-full p-4 bg-brand-on-surface/[0.03] border border-brand-outline/10 rounded-2xl font-black text-lg appearance-none outline-none"
-                />
+            <!-- Day & Time Pickers -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Day Selector -->
+              <div>
+                <label
+                  class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-3"
+                  >Jour du départ</label
+                >
+                <div class="relative">
+                  <select
+                    v-model="newRide.departure_day"
+                    class="w-full p-4 bg-brand-on-surface/[0.03] border border-brand-outline/10 rounded-2xl font-bold text-sm text-brand-on-surface appearance-none outline-none cursor-pointer"
+                  >
+                    <option
+                      v-for="d in availableDepartureDates"
+                      :key="d.dateStr"
+                      :value="d.dateStr"
+                    >
+                      {{ d.label }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Time Picker -->
+              <div>
+                <label
+                  class="block text-[11px] font-black uppercase tracking-widest text-brand-on-surface/40 mb-3"
+                  >Heure du départ</label
+                >
+                <div class="relative">
+                  <input
+                    v-model="newRide.departure_time"
+                    type="time"
+                    class="w-full p-4 bg-brand-on-surface/[0.03] border border-brand-outline/10 rounded-2xl font-black text-lg appearance-none outline-none text-brand-on-surface"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -2551,8 +2695,8 @@ function triggerConfetti() {
                 {{ selectedRide.profiles?.first_name }}
               </h2>
               <div>
-                <p class="text-brand-on-surface/50 font-bold flex items-center">
-                  Part à
+                <p class="text-brand-on-surface/50 font-bold flex items-center gap-1.5 flex-wrap">
+                  Part le {{ formatRideDay(selectedRide.departure_time) }} à
                   {{
                     new Date(selectedRide.departure_time).toLocaleTimeString(
                       [],
