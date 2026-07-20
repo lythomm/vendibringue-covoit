@@ -2084,7 +2084,7 @@ function triggerConfetti() {
                     :key="ride.id"
                     @click="selectedRide = ride"
                     :class="[
-                      'p-5 rounded-[2.5rem] flex items-center gap-5 hover:shadow-xl transition-all cursor-pointer group active:scale-[0.98]',
+                      'p-5 rounded-[2rem] flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-xl transition-all cursor-pointer group active:scale-[0.98]',
                       isPassenger(ride.id)
                         ? 'bg-white border-2 border-[#4285F4] shadow-md shadow-[#4285F4]/10'
                         : 'bg-white border border-brand-outline/30 hover:border-brand-primary/20',
@@ -2093,137 +2093,124 @@ function triggerConfetti() {
                         : '',
                     ]"
                   >
-                    <div class="relative flex-shrink-0">
-                      <div
-                        v-if="isPassenger(ride.id)"
-                        class="size-12 rounded-[1.5rem] bg-[#4285F4] text-white flex items-center justify-center shadow-lg shadow-[#4285F4]/20"
-                      >
-                        <span class="material-symbols-outlined text-2xl"
-                          >directions_car</span
+                    <!-- Left: Driver details & avatar -->
+                    <div class="flex items-center gap-3">
+                      <!-- Avatar -->
+                      <div class="relative flex-shrink-0">
+                        <div
+                          v-if="isPassenger(ride.id)"
+                          class="size-12 rounded-[1.5rem] bg-[#4285F4] text-white flex items-center justify-center shadow-lg shadow-[#4285F4]/20"
                         >
-                      </div>
-                      <div
-                        v-else
-                        class="size-12 rounded-full bg-brand-primary/5 flex items-center justify-center border border-brand-outline/20 overflow-hidden group-hover:border-brand-primary/30 transition-colors"
-                      >
-                        <img
-                          v-if="ride.profiles?.avatar_url"
-                          :src="getAvatarUrl(ride.profiles.avatar_url)"
-                          class="w-full h-full object-cover"
-                        />
-                        <span
+                          <span class="material-symbols-outlined text-2xl"
+                            >directions_car</span
+                          >
+                        </div>
+                        <div
                           v-else
-                          class="text-xl font-black text-brand-primary"
+                          class="size-12 rounded-full bg-brand-primary/5 flex items-center justify-center border border-brand-outline/20 overflow-hidden group-hover:border-brand-primary/30 transition-colors"
                         >
-                          {{ ride.profiles?.first_name?.charAt(0) }}
-                        </span>
-                      </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="flex justify-between items-start mb-1">
-                        <span
-                          :class="[
-                            'font-black text-lg',
-                            isPassenger(ride.id)
-                              ? 'text-[#4285F4]'
-                              : 'text-brand-on-surface',
-                          ]"
-                        >
-                          {{
-                            isPassenger(ride.id)
-                              ? formatTime(ride.departure_time)
-                              : ride.profiles?.first_name
-                          }}
-                        </span>
-                        <div class="flex items-center">
+                          <img
+                            v-if="ride.profiles?.avatar_url"
+                            :src="getAvatarUrl(ride.profiles.avatar_url)"
+                            class="w-full h-full object-cover"
+                          />
                           <span
-                            v-if="!isPassenger(ride.id) && userCoords"
-                            class="mr-3 text-[10px] font-black text-brand-primary bg-brand-primary/10 px-2.5 py-1 rounded-full border border-brand-primary/10 flex items-center"
+                            v-else
+                            class="text-xl font-black text-brand-primary"
                           >
-                            <span
-                              class="material-symbols-outlined !text-[12px] mr-1 opacity-70"
-                              >near_me</span
-                            >
-                            {{
-                              getDistance(
-                                userCoords.lat,
-                                userCoords.lng,
-                                ride.origin_lat,
-                                ride.origin_lng,
-                              ).toFixed(0)
-                            }}
-                            km
+                            {{ ride.profiles?.first_name?.charAt(0) }}
                           </span>
+                        </div>
+                      </div>
+
+                      <!-- Name & Day badge -->
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2">
                           <span
-                            v-if="!isPassenger(ride.id)"
-                            class="text-brand-primary font-black text-sm sm:text-base flex items-center gap-1.5"
+                            :class="[
+                              'font-black text-base truncate',
+                              isPassenger(ride.id)
+                                ? 'text-[#4285F4]'
+                                : 'text-brand-on-surface',
+                            ]"
                           >
-                            <span class="text-brand-on-surface/50 font-bold text-xs">{{ formatRideDay(ride.departure_time) }}</span>
-                            <span>•</span>
-                            <span>{{ formatTime(ride.departure_time) }}</span>
+                            {{
+                              isPassenger(ride.id)
+                                ? formatTime(ride.departure_time)
+                                : ride.profiles?.first_name
+                            }}
                           </span>
                           <span
                             v-if="isPassenger(ride.id)"
-                            class="px-3 py-1 bg-[#4285F4]/5 text-[#4285F4] text-[10px] font-black uppercase tracking-widest rounded-full"
+                            class="px-2 py-0.5 bg-[#4285F4]/10 text-[#4285F4] text-[9px] font-black uppercase tracking-widest rounded-full"
                             >Ton covoit</span
                           >
                         </div>
+                        <div class="flex items-center gap-1.5 text-xs text-brand-on-surface/50 font-bold mt-0.5">
+                          <span>{{ formatRideDay(ride.departure_time) }}</span>
+                          <span>•</span>
+                          <span class="text-brand-primary font-black">{{ formatTime(ride.departure_time) }}</span>
+                        </div>
                       </div>
-                      <div
-                        class="flex items-center gap-2"
-                        :class="isPassenger(ride.id) && 'mb-3'"
-                      >
+                    </div>
+
+                    <!-- Space for desktop -->
+                    <div class="hidden sm:block flex-1"></div>
+
+                    <!-- Right: Info Details (Origin, Distance, Seats) -->
+                    <div class="flex flex-col sm:items-end gap-2.5">
+                      <!-- Origin Name -->
+                      <div class="flex items-center gap-1.5 text-brand-on-surface/75">
+                        <span class="material-symbols-outlined text-[16px] text-brand-primary/70">location_on</span>
+                        <span class="text-xs font-bold uppercase tracking-tight truncate max-w-[200px]">
+                          {{ ride.origin_name }}
+                        </span>
+                      </div>
+
+                      <!-- Badges (Seats & Distance) -->
+                      <div class="flex flex-wrap items-center gap-2">
+                        <!-- Seats pill -->
                         <span
-                          class="text-sm font-bold text-nowrap"
-                          :class="
-                            getSeatsLeft(ride) <= 0
-                              ? 'text-brand-error'
-                              : 'text-brand-on-surface/60'
-                          "
                           v-if="!isPassenger(ride.id)"
+                          :class="[
+                            'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider',
+                            getSeatsLeft(ride) <= 0
+                              ? 'bg-red-50 text-red-600 border border-red-100'
+                              : 'bg-green-50 text-green-700 border border-green-100'
+                          ]"
                         >
                           {{
                             getSeatsLeft(ride) > 0
-                              ? `${getSeatsLeft(ride)} place${getSeatsLeft(ride) > 1 ? "s" : ""}`
+                              ? `${getSeatsLeft(ride)} place${getSeatsLeft(ride) > 1 ? "s" : ""} libre`
                               : "Plein"
                           }}
                         </span>
+
+                        <!-- Distance pill -->
                         <span
-                          v-if="!isPassenger(ride.id)"
-                          class="w-1 h-1 bg-brand-on-surface/20 rounded-full"
-                        ></span>
-                        <span
-                          class="text-xs font-bold uppercase tracking-tighter"
-                          :class="
-                            isPassenger(ride.id)
-                              ? 'text-brand-on-surface/40'
-                              : 'text-brand-primary/70'
-                          "
-                          >{{ ride.origin_name }}</span
+                          v-if="!isPassenger(ride.id) && userCoords"
+                          class="px-2.5 py-1 rounded-full text-[10px] font-black text-brand-primary bg-brand-primary/5 border border-brand-primary/10 flex items-center gap-1"
                         >
+                          <span class="material-symbols-outlined !text-[11px] opacity-70">near_me</span>
+                          {{
+                            getDistance(
+                              userCoords.lat,
+                              userCoords.lng,
+                              ride.origin_lat,
+                              ride.origin_lng,
+                            ).toFixed(0)
+                          }}
+                          km
+                        </span>
                       </div>
-                      <!-- Add occupancy status when passenger, just like driver side -->
+
+                      <!-- Booked count if passenger -->
                       <div
                         v-if="isPassenger(ride.id)"
-                        class="flex items-center gap-3 mt-1"
+                        class="flex items-center gap-2"
                       >
-                        <div class="flex -space-x-2">
-                          <div
-                            v-for="i in Math.min(3, getBookedCount(ride))"
-                            :key="i"
-                            class="w-7 h-7 rounded-full bg-brand-outline/20 border-2 border-white flex items-center justify-center overflow-hidden"
-                          >
-                            <span
-                              class="material-symbols-outlined text-[14px] text-brand-on-surface/40"
-                              >person</span
-                            >
-                          </div>
-                        </div>
-                        <span
-                          class="text-sm font-bold text-brand-on-surface/60"
-                        >
-                          {{ getBookedCount(ride) }} /
-                          {{ ride.total_seats }} passagers
+                        <span class="text-xs font-bold text-brand-on-surface/60">
+                          {{ getBookedCount(ride) }} / {{ ride.total_seats }} passagers
                         </span>
                       </div>
                     </div>
@@ -4016,5 +4003,14 @@ function triggerConfetti() {
 .car-marker,
 .epicenter-pulse {
   will-change: transform;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
 }
 </style>
